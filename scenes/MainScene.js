@@ -1,6 +1,15 @@
 class MainScene extends Phaser.Scene {
     constructor() {
         super('MainScene');
+
+        // Define game levels
+        this.levels = [
+            { level: 1, orcCount: 5 },
+            { level: 2, orcCount: 8 }
+        ];
+
+        // Current level index
+        this.currentLevelIndex = 0;
     }
 
     preload() {
@@ -122,8 +131,8 @@ class MainScene extends Phaser.Scene {
             this.orcs = this.add.group();
         }
 
-        // Spawn new orcs
-        const orcCount = 5; // Number of orcs to spawn
+        // Spawn new orcs based on current level
+        const orcCount = this.levels[this.currentLevelIndex].orcCount;
         for (let i = 0; i < orcCount; i++) {
             this.spawnOrc();
         }
@@ -138,14 +147,27 @@ class MainScene extends Phaser.Scene {
            // Check if all orcs are defeated
            const livingOrcs = this.orcs.children.entries.filter(orc => !orc.destroyed);
            if (livingOrcs.length === 0) {
-               this.winGame();
+               // Check if there are more levels
+               if (this.currentLevelIndex < this.levels.length - 1) {
+                   // Advance to next level
+                   this.currentLevelIndex++;
+                   this.initializeGame();
+               } else {
+                   // All levels completed, win the game
+                   this.winGame();
+               }
            }
        }
 
 winGame() {
         this.gameIsOver = true;
         // Display win text
-        this.resultText = this.add.text(400, 250, 'YOU WIN!', {
+        let winMessage = 'YOU WIN!';
+        if (this.currentLevelIndex < this.levels.length - 1) {
+            winMessage = `LEVEL ${this.levels[this.currentLevelIndex].level} COMPLETE!`;
+        }
+
+        this.resultText = this.add.text(400, 250, winMessage, {
             fontSize: '64px',
             fill: '#00ff00',
             stroke: '#000000',
@@ -186,6 +208,7 @@ winGame() {
 
             // Use a delayed call to ensure the event handler completes before reinitializing
             this.time.delayedCall(10, () => {
+                this.currentLevelIndex = 0; // Reset to first level
                 this.initializeGame();
             });
         };
@@ -833,6 +856,7 @@ gameOver() {
                 this.spaceKeyListener.destroy();
                 this.spaceKeyListener = null;
             }
+            this.currentLevelIndex = 0; // Reset to first level
             this.initializeGame();
         };
 
