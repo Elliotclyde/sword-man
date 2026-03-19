@@ -35,6 +35,7 @@ class MainScene extends Phaser.Scene {
 
     // Idempotent initialization method that properly resets all game state
     initializeGame() {
+
         // Reset game over flag
         this.gameIsOver = false;
 
@@ -62,19 +63,11 @@ class MainScene extends Phaser.Scene {
         // Reset player if it exists
         if (this.player) {
             this.player.setPosition(400, 300);
-            this.player.health = 3;
             this.player.clearTint();
             this.player.alpha = 1; // Reset player transparency
             if (this.player.body) {
                 this.player.body.setVelocity(0, 0);
             }
-            // Reset player state flags
-            this.isPlayerSwinging = false;
-            this.isDashing = false;
-            this.dashEndTime = 0;
-            this.lastDashTime = 0;
-            this.lastAttackTime = 0;
-            this.playerLastHitTime = 0; // Reset player hit timer
         }
 
         // Hide hit effect if it exists
@@ -82,9 +75,10 @@ class MainScene extends Phaser.Scene {
             this.hitEffect.setVisible(false);
         }
 
-        // Update health text if it exists
+        // Remove existing health text if it exists
         if (this.healthText) {
-            this.healthText.setText(`Health: ${this.player.health}`);
+            this.healthText.destroy();
+            this.healthText = null;
         }
 
         // Completely remove all existing orcs with multiple cleanup approaches
@@ -123,13 +117,8 @@ class MainScene extends Phaser.Scene {
 
             // Method 2: Clear the group
             this.orcs.clear();
-
-            // Method 3: Create a fresh group to ensure no references remain
-            this.orcs = this.add.group();
-        } else {
-            // Create the orcs group if it doesn't exist
-            this.orcs = this.add.group();
         }
+        this.orcs = this.add.group();
 
         // Spawn new orcs based on current level
         const orcCount = this.levels[this.currentLevelIndex].orcCount;
@@ -137,10 +126,44 @@ class MainScene extends Phaser.Scene {
             this.spawnOrc();
         }
 
-        // Re-establish collision detection between player and orcs
-        if (this.player && this.orcs) {
-            this.physics.add.overlap(this.player, this.orcs, this.handlePlayerOrcCollision, null, this);
-        }
+          // Track last horizontal direction (default to right)
+          this.lastHorizontalDirection = 'right';
+          this.isPlayerSwinging = false; // Track if player is currently swinging sword
+          this.isDashing = false; // Track if player is currently dashing
+          this.dashEndTime = 0; // Track when the dash ends
+          this.lastDashTime = 0; // Track when the last dash was used
+
+          // Track last attack time
+          this.lastAttackTime = 0; // Track when the last dash was used
+
+          // Track last time player was hit
+          this.playerLastHitTime = 0; // Track when the player was last hit by an orc
+
+          if (this.playerOrcCollider){
+            this.physics.world.removeCollider(this.playerOrcCollider);
+          }
+          // Set up collision detection for player taking damage from orcs
+          //this.physics.add.overlap(this.player, this.orcs, this.handlePlayerDamage, null, this);
+          this.playerOrcCollider = this.physics.add.overlap(this.player, this.orcs, this.handlePlayerOrcCollision, null, this);
+
+          // Create health display text
+          this.healthText = this.add.text(750, 550, `Health: ${this.player.health}`, {
+              fontSize: '32px',
+              fill: '#ffffff',
+              stroke: '#000000',
+              strokeThickness: 4
+          });
+          this.healthText.setOrigin(1, 1); // Align to bottom right
+          this.healthText.setScrollFactor(0); // Keep fixed on screen
+
+          // Create fullscreen red overlay for hit effect (hidden by default)
+          this.hitEffect = this.add.rectangle(0, 0, 800, 600, 0xff0000, 0.7);
+          this.hitEffect.setOrigin(0, 0);
+          this.hitEffect.setDepth(100); // Ensure it's on top
+          this.hitEffect.setVisible(false);
+
+          // Check win condition in case there are initially no orcs
+          this.checkWinCondition();
     }
 
        checkWinCondition() {
@@ -160,6 +183,9 @@ class MainScene extends Phaser.Scene {
        }
 
 winGame() {
+  if(this.gameIsOver){
+    return;
+  }
         this.gameIsOver = true;
         // Display win text
         let winMessage = 'YOU WIN!';
@@ -205,6 +231,7 @@ winGame() {
                 this.spaceKeyListener.destroy();
                 this.spaceKeyListener = null;
             }
+            this.player.health = 3;
 
             // Use a delayed call to ensure the event handler completes before reinitializing
             this.time.delayedCall(10, () => {
@@ -386,56 +413,18 @@ winGame() {
          // Initialize player health
          this.player.health = 3;
 
-         this.gameIsOver = false;
-
          this.physics.add.existing(this.player);
          this.player.body.setCollideWorldBounds(true);
          this.player.body.setSize(20.4, 19.95, true);
          this.player.body.setOffset(40, 38);
 
-         // Initialize the game state using our idempotent method
-         this.initializeGame();
-
-          // Add input controls
+         // Add input controls
           this.cursors = this.input.keyboard.createCursorKeys();
           this.spaceBar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
           this.xKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
 
-          // Track last horizontal direction (default to right)
-          this.lastHorizontalDirection = 'right';
-          this.isPlayerSwinging = false; // Track if player is currently swinging sword
-          this.isDashing = false; // Track if player is currently dashing
-          this.dashEndTime = 0; // Track when the dash ends
-          this.lastDashTime = 0; // Track when the last dash was used
-
-          // Track last attack time
-          this.lastAttackTime = 0; // Track when the last dash was used
-
-          // Track last time player was hit
-          this.playerLastHitTime = 0; // Track when the player was last hit by an orc
-
-          // Set up collision detection for player taking damage from orcs
-          //this.physics.add.overlap(this.player, this.orcs, this.handlePlayerDamage, null, this);
-          this.physics.add.overlap(this.player, this.orcs, this.handlePlayerOrcCollision, null, this);
-
-          // Create health display text
-          this.healthText = this.add.text(750, 550, `Health: ${this.player.health}`, {
-              fontSize: '32px',
-              fill: '#ffffff',
-              stroke: '#000000',
-              strokeThickness: 4
-          });
-          this.healthText.setOrigin(1, 1); // Align to bottom right
-          this.healthText.setScrollFactor(0); // Keep fixed on screen
-
-          // Create fullscreen red overlay for hit effect (hidden by default)
-          this.hitEffect = this.add.rectangle(0, 0, 800, 600, 0xff0000, 0.7);
-          this.hitEffect.setOrigin(0, 0);
-          this.hitEffect.setDepth(100); // Ensure it's on top
-          this.hitEffect.setVisible(false);
-
-          // Check win condition in case there are initially no orcs
-          this.checkWinCondition();
+         // Initialize the game state using our idempotent method
+         this.initializeGame();
     }
 
     spawnOrc() {
@@ -787,7 +776,9 @@ winGame() {
                   player.health -= 1;
 
                   // Update health display
-                  this.healthText.setText('Health: ' + player.health);
+                  if (this.healthText) {
+                      this.healthText.setText('Health: ' + player.health);
+                  }
 
                   // Visual feedback - flash player red and set transparency
                   player.setTint(0xff0000);
@@ -824,6 +815,9 @@ winGame() {
       }
 
 gameOver() {
+  if(this.gameIsOver){
+    return;
+  }
         this.gameIsOver = true;
         // Display game over text
         this.resultText = this.add.text(400, 250, 'GAME OVER', {
@@ -856,8 +850,12 @@ gameOver() {
                 this.spaceKeyListener.destroy();
                 this.spaceKeyListener = null;
             }
-            this.currentLevelIndex = 0; // Reset to first level
-            this.initializeGame();
+            this.player.health = 3;
+            // Use a delayed call to ensure the event handler completes before reinitializing
+            this.time.delayedCall(10, () => {
+                this.currentLevelIndex = 0; // Reset to first level
+                this.initializeGame();
+            });
         };
 
         this.playAgainButton.on('pointerdown', restartGame);
