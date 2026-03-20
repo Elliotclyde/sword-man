@@ -1,3 +1,8 @@
+const entityTypes = {
+    PLAYER: "PLAYER",
+    ORC: "ORC"
+};
+
 class MainScene extends Phaser.Scene {
     constructor() {
         super('MainScene');
@@ -146,15 +151,16 @@ class MainScene extends Phaser.Scene {
           //this.physics.add.overlap(this.player, this.orcs, this.handlePlayerDamage, null, this);
           this.playerOrcCollider = this.physics.add.overlap(this.player, this.orcs, this.handlePlayerOrcCollision, null, this);
 
-          // Create health display text
-          this.healthText = this.add.text(750, 550, `Health: ${this.player.health}`, {
-              fontSize: '32px',
-              fill: '#ffffff',
-              stroke: '#000000',
-              strokeThickness: 4
-          });
-          this.healthText.setOrigin(1, 1); // Align to bottom right
-          this.healthText.setScrollFactor(0); // Keep fixed on screen
+    // Create health display text
+    this.healthText = this.add.text(750, 550, `Health: ${this.player.health}`, {
+        fontSize: '32px',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4
+    });
+    this.healthText.setOrigin(1, 1); // Align to bottom right
+    this.healthText.setScrollFactor(0); // Keep fixed on screen
+    this.healthText.setDepth(10); // Render above player and orcs
 
           // Create fullscreen red overlay for hit effect (hidden by default)
           this.hitEffect = this.add.rectangle(0, 0, 800, 600, 0xff0000, 0.7);
@@ -660,6 +666,44 @@ winGame() {
          });
      }
 
+    createBloodParticles(x, y, entityType) {
+        let bloodColor;
+        switch (entityType) {
+            case entityTypes.PLAYER:
+                bloodColor = 0xff0000;
+                break;
+            case entityTypes.ORC:
+                bloodColor = 0x330000;
+                break;
+            default:
+                bloodColor = 0xff0000;
+        }
+
+        const particleCount = Phaser.Math.Between(8, 12);
+        for (let i = 0; i < particleCount; i++) {
+            const particle = this.add.circle(x, y, 2, bloodColor, 1);
+            particle.setDepth(15);
+            
+            const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+            const speed = Phaser.Math.Between(50, 125);
+            const targetX = x + Math.cos(angle) * speed * 0.5;
+            const targetY = y + Math.sin(angle) * speed * 0.5;
+            
+            this.tweens.add({
+                targets: particle,
+                x: targetX,
+                y: targetY,
+                alpha: 0,
+                radius: Phaser.Math.Between(4, 8),
+                duration: 500,
+                ease: 'Quad.out',
+                onComplete: () => {
+                    particle.destroy();
+                }
+            });
+        }
+    }
+
     scheduleOrcBehaviorChange(orc) {
           // Don't change behavior if orc is swinging axe or dead
           if (!orc.orcIsAxeSwinging && !orc.orcIsDead) {
@@ -713,17 +757,20 @@ winGame() {
               }
 
                console.log('Orc not dead, triggering death sequence');
-               // Mark orc as dead
-               orc.orcIsDead = true;
+        // Create blood particles
+        this.createBloodParticles(orc.x, orc.y, entityTypes.ORC);
 
-               // Lower orc's depth so it renders under the player after death
-               orc.setDepth(-1);
+        // Mark orc as dead
+        orc.orcIsDead = true;
 
-               // Stop orc movement
-               orc.body.setVelocity(0, 0);
+        // Lower orc's depth so it renders under the player after death
+        orc.setDepth(-1);
 
-               // Play death animation
-               orc.play('orc_die');
+        // Stop orc movement
+        orc.body.setVelocity(0, 0);
+
+        // Play death animation
+        orc.play('orc_die');
 
                // After death animation completes, start fade out
                orc.once('animationcomplete-orc_die', () => {
@@ -769,11 +816,14 @@ winGame() {
                     orc.hasRecentlyAttacked = false;
                   })
 
-                  // Set player invulnerability timer
-                  this.playerLastHitTime = this.time.now;
+        // Set player invulnerability timer
+        this.playerLastHitTime = this.time.now;
 
-                  // Reduce player health
-                  player.health -= 1;
+        // Create blood particles
+        this.createBloodParticles(player.x, player.y, entityTypes.PLAYER);
+
+        // Reduce player health
+        player.health -= 1;
 
                   // Update health display
                   if (this.healthText) {
