@@ -4,7 +4,7 @@ This document provides essential information for agentic coding agents working o
 
 ## Project Overview
 
-This is a simple HTML5 game built with Phaser.js. The game features a player character (soldier) that can move around, dash, and attack orcs. The game has multiple levels with increasing difficulty.
+This is an HTML5 game built with Phaser.js. The game features a player character (soldier) that can move around, dash, and attack enemies. The game has multiple levels with increasing difficulty.
 
 ## Build/Lint/Test Commands
 

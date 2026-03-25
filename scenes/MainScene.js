@@ -65,6 +65,12 @@ class MainScene extends Phaser.Scene {
             this.spaceKeyListener = null;
         }
 
+        // Remove black overlay if it exists
+        if (this.blackOverlay) {
+            this.blackOverlay.destroy();
+            this.blackOverlay = null;
+        }
+
         // Reset player if it exists
         if (this.player) {
             this.player.setPosition(400, 300);
@@ -407,6 +413,18 @@ winGame() {
                 { key: 'orc', frame: 29 }
             ],
             frameRate: 10,
+            repeat: 0
+        });
+
+        this.anims.create({
+            key: 'player_die',
+            frames: [
+                { key: 'soldier', frame: 54 },
+                { key: 'soldier', frame: 55 },
+                { key: 'soldier', frame: 56 },
+                { key: 'soldier', frame: 57 }
+            ],
+            frameRate: 2,
             repeat: 0
         });
 
@@ -855,98 +873,127 @@ winGame() {
                       }
                   });
 
-                  // Check for game over
-                  if (player.health <= 0) {
-                      this.gameOver();
-                  }
+        // Check for game over
+        if (player.health <= 0) {
+            player.alpha = 1;
+            this.gameOver();
+        }
           }
 
         }
       }
 
-gameOver() {
-  if(this.gameIsOver){
-    return;
-  }
+    gameOver() {
+        if(this.gameIsOver){
+            return;
+        }
         this.gameIsOver = true;
-        // Display game over text
-        this.resultText = this.add.text(400, 250, 'GAME OVER', {
-            fontSize: '64px',
-            fill: '#ff0000',
-            stroke: '#000000',
-            strokeThickness: 6
-        });
-        this.resultText.setOrigin(0.5);
-        this.resultText.setDepth(10);
-
-        // Create Play Again button
-        this.playAgainButton = this.add.text(400, 350, 'Play Again', {
-            fontSize: '32px',
-            fill: '#ffffff',
-            backgroundColor: '#c19a6b',
-            padding: {
-                left: 20,
-                right: 20,
-                top: 10,
-                bottom: 10
-            }
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-        // Function to restart the game
-        const restartGame = () => {
-            // Remove the space key listener if it exists
-            if (this.spaceKeyListener) {
-                this.spaceKeyListener.removeAllListeners();
-                this.spaceKeyListener.destroy();
-                this.spaceKeyListener = null;
-            }
-            this.player.health = 3;
-            // Use a delayed call to ensure the event handler completes before reinitializing
-            this.time.delayedCall(10, () => {
-                this.currentLevelIndex = 0; // Reset to first level
-                this.initializeGame();
-            });
-        };
-
-        this.playAgainButton.on('pointerdown', restartGame);
-
-        // Add keyboard listener for space key to restart the game
-        this.spaceKeyListener = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-        this.spaceKeyListener.on('down', restartGame);
 
         // Stop player movement
         if (this.player && this.player.body) {
             this.player.body.setVelocity(0, 0);
         }
 
-        // Stop all orcs and destroy them
-        const orcsToDestroy = [...this.orcs.children.entries]; // Create a copy to avoid iteration issues
-        orcsToDestroy.forEach(orc => {
+        // Stop all orcs
+        const orcsToStop = [...this.orcs.children.entries];
+        orcsToStop.forEach(orc => {
             if (!orc.destroyed) {
-                // Clear any pending behavior timers
-                if (orc.behaviorTimer) {
-                    orc.behaviorTimer.remove(false);
+                if (orc.body) {
+                    orc.body.setVelocity(0, 0);
                 }
-                // Complete any fade tweens immediately
-                if (orc.fadeTween) {
-                    orc.fadeTween.complete();
-                    orc.fadeTween = null;
-                }
-                // Remove all animation listeners
-                orc.off('animationcomplete-orc_die');
-                orc.off('animationcomplete-orc_axe');
-                // Stop any current animations
-                if (orc.anims) {
-                    orc.anims.stop();
-                }
-                // Reset alpha in case it was modified by a tween
-                orc.alpha = 1;
-                // Destroy the orc
-                orc.destroy();
             }
         });
-        // Clear the orcs group
-        this.orcs.clear();
+
+        // Create black overlay for fade effect
+        this.blackOverlay = this.add.rectangle(0, 0, 800, 600, 0x000000);
+        this.blackOverlay.setOrigin(0, 0);
+        this.blackOverlay.setAlpha(0);
+        this.blackOverlay.setDepth(200);
+
+        // Play player death animation
+        this.player.play('player_die');
+
+        // Fade screen to black over 2 seconds
+        this.tweens.add({
+            targets: this.blackOverlay,
+            alpha: 0.75,
+            duration: 2000,
+            ease: 'Linear',
+            onComplete: () => {
+                // Stop the death animation
+                this.player.stop();
+
+                // Clean up orcs
+                const orcsToDestroy = [...this.orcs.children.entries];
+                orcsToDestroy.forEach(orc => {
+                    if (!orc.destroyed) {
+                        if (orc.behaviorTimer) {
+                            orc.behaviorTimer.remove(false);
+                        }
+                        if (orc.fadeTween) {
+                            orc.fadeTween.complete();
+                            orc.fadeTween = null;
+                        }
+                        orc.off('animationcomplete-orc_die');
+                        orc.off('animationcomplete-orc_axe');
+                        if (orc.anims) {
+                            orc.anims.stop();
+                        }
+                        orc.alpha = 1;
+                        orc.destroy();
+                    }
+                });
+                this.orcs.clear();
+
+                // Display game over text
+                this.resultText = this.add.text(400, 250, 'GAME OVER', {
+                    fontSize: '64px',
+                    fill: '#ff0000',
+                    stroke: '#000000',
+                    strokeThickness: 6
+                });
+                this.resultText.setOrigin(0.5);
+                this.resultText.setDepth(210);
+
+                // Create Play Again button
+                this.playAgainButton = this.add.text(400, 350, 'Play Again', {
+                    fontSize: '32px',
+                    fill: '#ffffff',
+                    backgroundColor: '#c19a6b',
+                    padding: {
+                        left: 20,
+                        right: 20,
+                        top: 10,
+                        bottom: 10
+                    }
+                }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+                this.playAgainButton.setDepth(210);
+
+                // Function to restart the game
+                const restartGame = () => {
+                    if (this.spaceKeyListener) {
+                        this.spaceKeyListener.removeAllListeners();
+                        this.spaceKeyListener.destroy();
+                        this.spaceKeyListener = null;
+                    }
+                    if (this.blackOverlay) {
+                        this.blackOverlay.destroy();
+                        this.blackOverlay = null;
+                    }
+                    this.player.health = 3;
+                    this.time.delayedCall(10, () => {
+                        this.currentLevelIndex = 0;
+                        this.initializeGame();
+                    });
+                };
+
+                this.playAgainButton.on('pointerdown', restartGame);
+
+                // Add keyboard listener for space key to restart the game
+                this.spaceKeyListener = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+                this.spaceKeyListener.on('down', restartGame);
+            }
+        });
     }
 }
 
