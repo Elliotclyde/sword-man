@@ -1,16 +1,62 @@
 const entityTypes = {
     PLAYER: "PLAYER",
-    ORC: "ORC"
+    ENEMY: "ENEMY",
+    WIZARD_FIREBALL: "WIZARD_FIREBALL"
+};
+
+// Enemy type definitions for extensibility
+const enemyTypes = {
+    ORC: "ORC",
+    WIZARD: "WIZARD"
+};
+
+// Enemy configuration: sprite asset, frame dimensions, and attack animation
+const enemyConfigs = {
+    [enemyTypes.ORC]: {
+        assetKey: 'orc',
+        frameWidth: 100,
+        frameHeight: 100,
+        attackAnimKey: 'orc_attack'
+    },
+    [enemyTypes.WIZARD]: {
+        assetKey: 'wizard',
+        frameWidth: 100,
+        frameHeight: 100,
+        attackAnimKey: 'wizard_attack'
+    }
 };
 
 class MainScene extends Phaser.Scene {
     constructor() {
         super('MainScene');
 
-        // Define game levels
-        this.levels = [
-            { level: 1, orcCount: 5 },
-            { level: 2, orcCount: 8 }
+         // Define game levels with enemy configurations
+         this.levels = [
+             { 
+                 level: 1, 
+                 enemies: [
+                     { type: enemyTypes.ORC, count: 1 }
+                 ], 
+                 playerStartX: 100, 
+                 playerStartY: 100 
+             },
+            { 
+                level: 2, 
+                enemies: [
+                    { type: enemyTypes.ORC, count: 5}
+                ], 
+                playerStartX: 600, 
+                playerStartY: 500 
+            },
+            { 
+                level: 3, 
+                enemies: [
+                    { type: enemyTypes.ORC, count: 5 },
+                    { type: enemyTypes.WIZARD, count: 1 }
+                ], 
+                playerStartX: 100, 
+                playerStartY: 100 
+            }
         ];
 
         // Current level index
@@ -27,6 +73,12 @@ class MainScene extends Phaser.Scene {
 
         // Orc.png is set up similarly to Soldier.png
         this.load.spritesheet('orc', 'assets/Orc.png', {
+            frameWidth: 100,
+            frameHeight: 100
+        });
+
+        // Wizard.png is set up similarly to Soldier.png
+        this.load.spritesheet('wizard', 'assets/Wizard.png', {
             frameWidth: 100,
             frameHeight: 100
         });
@@ -73,7 +125,8 @@ class MainScene extends Phaser.Scene {
 
         // Reset player if it exists
         if (this.player) {
-            this.player.setPosition(400, 300);
+            const currentLevel = this.levels[this.currentLevelIndex];
+            this.player.setPosition(currentLevel.playerStartX, currentLevel.playerStartY);
             this.player.clearTint();
             this.player.alpha = 1; // Reset player transparency
             if (this.player.body) {
@@ -86,56 +139,93 @@ class MainScene extends Phaser.Scene {
             this.hitEffect.setVisible(false);
         }
 
-        // Remove existing health text if it exists
-        if (this.healthText) {
-            this.healthText.destroy();
-            this.healthText = null;
+        // Reset game started flag
+        this.isGameStarted = false;
+
+        // Reset space bar and x key to clear any pending inputs
+        if (this.spaceBar) {
+            this.spaceBar.reset();
+        }
+        if (this.xKey) {
+            this.xKey.reset();
         }
 
-        // Completely remove all existing orcs with multiple cleanup approaches
-        if (this.orcs) {
-            // Method 1: Destroy each orc individually with special handling for dying orcs
-            const orcsToDestroy = [...this.orcs.children.entries]; // Create a copy to avoid iteration issues
-            orcsToDestroy.forEach(orc => {
-                if (orc && !orc.destroyed) {
-                    // Clear any timers associated with the orc
-                    if (orc.behaviorTimer) {
-                        orc.behaviorTimer.remove(false);
-                    }
+         // Remove existing health text if it exists
+         if (this.healthText) {
+             this.healthText.destroy();
+             this.healthText = null;
+         }
 
-                    // If orc has an ongoing tween (fade out), complete it immediately
-                    if (orc.fadeTween) {
-                        orc.fadeTween.complete();
-                        orc.fadeTween = null;
-                    }
+         // Remove existing level text if it exists
+         if (this.levelText) {
+             this.levelText.destroy();
+             this.levelText = null;
+         }
 
-                    // Remove all animation completion listeners
-                    orc.off('animationcomplete-orc_die');
-                    orc.off('animationcomplete-orc_axe');
+        // Completely remove all existing enemies with multiple cleanup approaches
+        if (this.enemies) {
+             // Method 1: Destroy each enemy individually with special handling for dying enemies
+             const enemiesToDestroy = [...this.enemies.children.entries]; // Create a copy to avoid iteration issues
+             enemiesToDestroy.forEach(enemy => {
+                 if (enemy && !enemy.destroyed) {
+                     // Clear any timers associated with the enemy
+                     if (enemy.behaviorTimer) {
+                         enemy.behaviorTimer.remove(false);
+                     }
 
-                    // Stop any current animations
-                    if (orc.anims) {
-                        orc.anims.stop();
-                    }
+                     // Clear wizard attack timer if it exists
+                     if (enemy.attackTimer) {
+                         enemy.attackTimer.remove(false);
+                     }
 
-                    // Reset alpha in case it was modified by a tween
-                    orc.alpha = 1;
+                     // If enemy has an ongoing tween (fade out), complete it immediately
+                      if (enemy.fadeTween) {
+                          enemy.fadeTween.complete();
+                          enemy.fadeTween = null;
+                      }
 
-                    // Force destroy the orc
-                    orc.destroy();
-                }
-            });
+                      // Remove all animation completion listeners (use enemy type to get correct animation keys)
+                      const typePrefix = enemy.type ? enemy.type.toLowerCase() : 'orc';
+                      enemy.off(`animationcomplete-${typePrefix}_die`);
+                      enemy.off(`animationcomplete-${typePrefix}_attack`);
 
-            // Method 2: Clear the group
-            this.orcs.clear();
+                      // Stop any current animations
+                      if (enemy.anims) {
+                          enemy.anims.stop();
+                      }
+
+                      // Reset alpha in case it was modified by a tween
+                      enemy.alpha = 1;
+
+                      // Force destroy the enemy
+                      enemy.destroy();
+                  }
+              });
+
+             // Method 2: Clear the group
+             this.enemies.clear();
         }
-        this.orcs = this.add.group();
+         this.enemies = this.add.group();
 
-        // Spawn new orcs based on current level
-        const orcCount = this.levels[this.currentLevelIndex].orcCount;
-        for (let i = 0; i < orcCount; i++) {
-            this.spawnOrc();
-        }
+         // Remove all fireballs
+         if (this.fireballs) {
+             const fireballsToDestroy = [...this.fireballs.children.entries];
+             fireballsToDestroy.forEach(fireball => {
+                 if (fireball && !fireball.destroyed) {
+                     fireball.destroy();
+                 }
+             });
+             this.fireballs.clear();
+         }
+         this.fireballs = this.add.group();
+
+         // Spawn new enemies based on current level configuration
+         const levelConfig = this.levels[this.currentLevelIndex];
+         levelConfig.enemies.forEach(enemySpec => {
+             for (let i = 0; i < enemySpec.count; i++) {
+                 this.spawnEnemy(enemySpec.type);
+             }
+         });
 
           // Track last horizontal direction (default to right)
           this.lastHorizontalDirection = 'right';
@@ -147,18 +237,24 @@ class MainScene extends Phaser.Scene {
           // Track last attack time
           this.lastAttackTime = 0; // Track when the last dash was used
 
-          // Track last time player was hit
-          this.playerLastHitTime = 0; // Track when the player was last hit by an orc
+         // Track last time player was hit
+         this.playerLastHitTime = 0; // Track when the player was last hit by an enemy
 
-          if (this.playerOrcCollider){
-            this.physics.world.removeCollider(this.playerOrcCollider);
+          if (this.playerEnemyCollider){
+            this.physics.world.removeCollider(this.playerEnemyCollider);
           }
-          // Set up collision detection for player taking damage from orcs
-          //this.physics.add.overlap(this.player, this.orcs, this.handlePlayerDamage, null, this);
-          this.playerOrcCollider = this.physics.add.overlap(this.player, this.orcs, this.handlePlayerOrcCollision, null, this);
+          // Set up collision detection for player taking damage from enemies
+          //this.physics.add.overlap(this.player, this.enemies, this.handlePlayerDamage, null, this);
+          this.playerEnemyCollider = this.physics.add.overlap(this.player, this.enemies, this.handlePlayerEnemyCollision, null, this);
+
+          // Set up collision detection for fireballs hitting the player
+          if (this.playerFireballCollider) {
+              this.physics.world.removeCollider(this.playerFireballCollider);
+          }
+          this.playerFireballCollider = this.physics.add.overlap(this.player, this.fireballs, this.handleFireballHit, null, this);
 
     // Create health display text
-    this.healthText = this.add.text(750, 550, `Health: ${this.player.health}`, {
+     this.healthText = this.add.text(750, 550, `Health: ${this.player.health}`, {
         fontSize: '32px',
         fill: '#ffffff',
         stroke: '#000000',
@@ -166,7 +262,20 @@ class MainScene extends Phaser.Scene {
     });
     this.healthText.setOrigin(1, 1); // Align to bottom right
     this.healthText.setScrollFactor(0); // Keep fixed on screen
-    this.healthText.setDepth(10); // Render above player and orcs
+    this.healthText.setDepth(10); // Render above player and enemies
+    this.healthText.setAlpha(0.7); // Make slightly transparent
+
+    // Create level text on bottom left
+    this.levelText = this.add.text(50, 550, `Level: ${this.currentLevelIndex + 1}`, {
+        fontSize: '32px',
+        fill: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4
+    });
+    this.levelText.setOrigin(0, 1); // Align to bottom left
+    this.levelText.setScrollFactor(0); // Keep fixed on screen
+    this.levelText.setDepth(10); // Render above player and enemies
+    this.levelText.setAlpha(0.7); // Make slightly transparent
 
           // Create fullscreen red overlay for hit effect (hidden by default)
           this.hitEffect = this.add.rectangle(0, 0, 800, 600, 0xff0000, 0.7);
@@ -174,27 +283,91 @@ class MainScene extends Phaser.Scene {
           this.hitEffect.setDepth(100); // Ensure it's on top
           this.hitEffect.setVisible(false);
 
-          // Check win condition in case there are initially no orcs
+          // Check win condition in case there are initially no enemies
           this.checkWinCondition();
+          
+          // Enable attacking now that the game is initialized
+          this.isGameStarted = true;
     }
 
-       checkWinCondition() {
-           // Check if all orcs are defeated
-           const livingOrcs = this.orcs.children.entries.filter(orc => !orc.destroyed);
-           if (livingOrcs.length === 0) {
-               // Check if there are more levels
-               if (this.currentLevelIndex < this.levels.length - 1) {
-                   // Advance to next level
-                   this.currentLevelIndex++;
-                   this.initializeGame();
-               } else {
-                   // All levels completed, win the game
-                   this.winGame();
-               }
-           }
-       }
+        checkWinCondition() {
+            // Check if all enemies are defeated
+            const livingEnemies = this.enemies.children.entries.filter(enemy => !enemy.destroyed);
+            if (livingEnemies.length === 0) {
+                // Check if there are more levels
+                if (this.currentLevelIndex < this.levels.length - 1) {
+                    // Advance to next level
+                    this.currentLevelIndex++;
+                    this.initializeGame();
+                } else {
+                    // All levels completed, win the game
+                    this.winGame();
+                }
+            }
+        }
 
-winGame() {
+    handleFireballHit(player, fireball) {
+        if (this.gameIsOver || fireball.destroyed) {
+            return;
+        }
+
+        // Check if player is currently invulnerable to damage
+        if (this.playerLastHitTime && this.time.now - this.playerLastHitTime < 1000) {
+            // Player is invulnerable, destroy fireball but don't take damage
+            fireball.destroy();
+            return;
+        }
+
+        // Set player invulnerability timer
+        this.playerLastHitTime = this.time.now;
+
+        // Create blood particles
+        this.createBloodParticles(player.x, player.y, entityTypes.PLAYER);
+
+        // Reduce player health
+        player.health -= 1;
+
+        // Update health display
+        if (this.healthText) {
+            this.healthText.setText('Health: ' + player.health);
+        }
+
+        // Visual feedback - flash player red and set transparency
+        player.setTint(0xff0000);
+        player.alpha = 0.7; // Make player semi-transparent
+
+        // Show fullscreen red effect for 10ms
+        this.hitEffect.setVisible(true);
+        this.time.delayedCall(10, () => {
+            if (this.hitEffect) {
+                this.hitEffect.setVisible(false);
+            }
+        });
+
+        // Gradually restore alpha over the invulnerability period
+        this.time.delayedCall(1000, () => {
+            if (player && !player.destroyed) {
+                player.alpha = 1;
+            }
+        });
+
+        this.time.delayedCall(200, () => {
+            if (player && !player.destroyed) {
+                player.clearTint();
+            }
+        });
+
+        // Destroy the fireball
+        fireball.destroy();
+
+        // Check for game over
+        if (player.health <= 0) {
+            player.alpha = 1;
+            this.gameOver();
+        }
+    }
+
+    winGame() {
   if(this.gameIsOver){
     return;
   }
@@ -244,6 +417,7 @@ winGame() {
                 this.spaceKeyListener = null;
             }
             this.player.health = 3;
+            this.isGameStarted = false;
 
             // Use a delayed call to ensure the event handler completes before reinitializing
             this.time.delayedCall(10, () => {
@@ -263,37 +437,46 @@ winGame() {
             this.player.body.setVelocity(0, 0);
         }
 
-        // Stop all orcs (in case any are still alive) and destroy them
-        const orcsToDestroy = [...this.orcs.children.entries]; // Create a copy to avoid iteration issues
-        orcsToDestroy.forEach(orc => {
-            if (!orc.destroyed) {
-                // Clear any pending behavior timers
-                if (orc.behaviorTimer) {
-                    orc.behaviorTimer.remove(false);
-                }
-                // Complete any fade tweens immediately
-                if (orc.fadeTween) {
-                    orc.fadeTween.complete();
-                    orc.fadeTween = null;
-                }
-                // Remove all animation listeners
-                orc.off('animationcomplete-orc_die');
-                orc.off('animationcomplete-orc_axe');
-                // Stop any current animations
-                if (orc.anims) {
-                    orc.anims.stop();
-                }
-                // Reset alpha in case it was modified by a tween
-                orc.alpha = 1;
-                // Destroy the orc
-                orc.destroy();
-            }
-        });
-        // Clear the orcs group
-        this.orcs.clear();
+          // Stop all enemies (in case any are still alive) and destroy them
+          const enemiesToDestroy = [...this.enemies.children.entries]; // Create a copy to avoid iteration issues
+          enemiesToDestroy.forEach(enemy => {
+              if (!enemy.destroyed) {
+                  // Clear any pending behavior timers
+                  if (enemy.behaviorTimer) {
+                      enemy.behaviorTimer.remove(false);
+                  }
+                   // Clear wizard attack timer if it exists
+                   if (enemy.attackTimer) {
+                       enemy.attackTimer.remove(false);
+                   }
+                   // Complete any fade tweens immediately
+                   if (enemy.fadeTween) {
+                       enemy.fadeTween.complete();
+                       enemy.fadeTween = null;
+                   }
+                   // Remove all animation listeners (use enemy type to get correct animation keys)
+                   const typePrefix = enemy.type ? enemy.type.toLowerCase() : 'orc';
+                   enemy.off(`animationcomplete-${typePrefix}_die`);
+                   enemy.off(`animationcomplete-${typePrefix}_attack`);
+                   // Stop any current animations
+                   if (enemy.anims) {
+                       enemy.anims.stop();
+                   }
+                   // Reset alpha in case it was modified by a tween
+                   enemy.alpha = 1;
+                   // Destroy the enemy
+                   enemy.destroy();
+               }
+           });
+           // Clear the enemies group
+           this.enemies.clear();
     }
 
     create() {
+        // Set up pause key
+        this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+        this.escapeKey.on('down', () => this.togglePause());
+
         // Create a 20x20 grid of random dungeon tiles
         const tileSize = 16; // Each tile is 16x16
         const gridWidth = 20;
@@ -353,68 +536,122 @@ winGame() {
             repeat: 0
         });
 
-        // Create Orc animations using same frame layout as soldier
-        this.anims.create({
-            key: 'orc_stand',
-            frames: this.anims.generateFrameNumbers('orc', { start: 0, end: 5 }),
-            frameRate: 10,
-            repeat: -1
-        });
+         // Create ORC animations using orc spritesheet
+         this.anims.create({
+             key: 'orc_stand',
+             frames: this.anims.generateFrameNumbers('orc', { start: 0, end: 5 }),
+             frameRate: 10,
+             repeat: -1
+         });
 
-        this.anims.create({
-            key: 'orc_walk',
-            frames: [
-                { key: 'orc', frame: 10 },
-                { key: 'orc', frame: 11 },
-                { key: 'orc', frame: 12 },
-                { key: 'orc', frame: 13 },
-                { key: 'orc', frame: 14 },
-                { key: 'orc', frame: 15 },
-                { key: 'orc', frame: 16 }
-            ],
-            frameRate: 10,
-            repeat: -1
-        });
+         this.anims.create({
+             key: 'orc_walk',
+             frames: [
+                 { key: 'orc', frame: 10 },
+                 { key: 'orc', frame: 11 },
+                 { key: 'orc', frame: 12 },
+                 { key: 'orc', frame: 13 },
+                 { key: 'orc', frame: 14 },
+                 { key: 'orc', frame: 15 },
+                 { key: 'orc', frame: 16 }
+             ],
+             frameRate: 10,
+             repeat: -1
+         });
 
-        this.anims.create({
-            key: 'orc_sword',
-            frames: [
-                { key: 'orc', frame: 18 },
-                { key: 'orc', frame: 19 },
-                { key: 'orc', frame: 20 },
-                { key: 'orc', frame: 21 },
-                { key: 'orc', frame: 22 },
-                { key: 'orc', frame: 23 }
-            ],
-            frameRate: 10,
-            repeat: 0
-        });
+         this.anims.create({
+             key: 'orc_die',
+             frames: [
+                 { key: 'orc', frame: 40 },
+                 { key: 'orc', frame: 41 },
+                 { key: 'orc', frame: 42 },
+                 { key: 'orc', frame: 43 }
+             ],
+             frameRate: 10,
+             repeat: 0
+         });
 
-        this.anims.create({
-            key: 'orc_die',
-            frames: [
-                { key: 'orc', frame: 40 },
-                { key: 'orc', frame: 41 },
-                { key: 'orc', frame: 42 },
-                { key: 'orc', frame: 43 }
-            ],
-            frameRate: 10,
-            repeat: 0
-        });
+         this.anims.create({
+             key: 'orc_attack',
+             frames: [
+                 { key: 'orc', frame: 24 },
+                 { key: 'orc', frame: 25 },
+                 { key: 'orc', frame: 26 },
+                 { key: 'orc', frame: 27 },
+                 { key: 'orc', frame: 28 },
+                 { key: 'orc', frame: 29 }
+             ],
+             frameRate: 10,
+             repeat: 0
+         });
 
-        this.anims.create({
-            key: 'orc_axe',
-            frames: [
-                { key: 'orc', frame: 24 },
-                { key: 'orc', frame: 25 },
-                { key: 'orc', frame: 26 },
-                { key: 'orc', frame: 27 },
-                { key: 'orc', frame: 28 },
-                { key: 'orc', frame: 29 }
-            ],
-            frameRate: 10,
-            repeat: 0
-        });
+         // Create WIZARD animations using wizard spritesheet
+         this.anims.create({
+             key: 'wizard_stand',
+             frames: this.anims.generateFrameNumbers('wizard', { start: 0, end: 5 }),
+             frameRate: 10,
+             repeat: -1
+         });
+
+         this.anims.create({
+             key: 'wizard_walk',
+             frames: [
+                 { key: 'wizard', frame: 15 },
+                 { key: 'wizard', frame: 16 },
+                 { key: 'wizard', frame: 17 },
+                 { key: 'wizard', frame: 18 },
+                 { key: 'wizard', frame: 19 },
+                 { key: 'wizard', frame: 20 },
+                 { key: 'wizard', frame: 21 }
+             ],
+             frameRate: 10,
+             repeat: -1
+         });
+
+         this.anims.create({
+             key: 'wizard_die',
+             frames: [
+                 { key: 'wizard', frame: 135 },
+                 { key: 'wizard', frame: 136 },
+                 { key: 'wizard', frame: 137 },
+                 { key: 'wizard', frame: 138 }
+             ],
+             frameRate: 10,
+             repeat: 0
+         });
+
+          this.anims.create({
+              key: 'wizard_attack',
+              frames: [
+                  { key: 'wizard', frame: 75 },
+                  { key: 'wizard', frame: 76 },
+                  { key: 'wizard', frame: 77},
+                  { key: 'wizard', frame: 78 },
+                  { key: 'wizard', frame: 79 },
+                  { key: 'wizard', frame: 80 },
+                  { key: 'wizard', frame: 81 },
+                  { key: 'wizard', frame: 82 },
+                  { key: 'wizard', frame: 83},
+                  { key: 'wizard', frame: 84 },
+                  { key: 'wizard', frame: 85 },
+                  { key: 'wizard', frame: 86 }
+              ],
+               frameRate: 10,
+              repeat: 0
+          });
+
+          this.anims.create({
+              key: 'wizard_fireball',
+              frames: [
+                  { key: 'wizard', frame: 105 },
+                  { key: 'wizard', frame: 106 },
+                  { key: 'wizard', frame: 107 },
+                  { key: 'wizard', frame: 108 },
+                  { key: 'wizard', frame: 109 }
+              ],
+              frameRate: 10,
+              repeat: -1
+          });
 
         this.anims.create({
             key: 'player_die',
@@ -446,46 +683,193 @@ winGame() {
           this.cursors = this.input.keyboard.createCursorKeys();
           this.spaceBar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
           this.xKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+          this.isGameStarted = true; // Track if game has started, set to false after level completion
 
-         // Initialize the game state using our idempotent method
-         this.initializeGame();
+        // Initialize the game state using our idempotent method
+        this.initializeGame();
     }
 
-    spawnOrc() {
-        // Create an orc at a random position
-        const randomX = Phaser.Math.Between(50, 750);
-        const randomY = Phaser.Math.Between(50, 550);
-        const orc = this.add.sprite(randomX, randomY, 'orc', 0);
-        orc.setScale(3);
-        orc.setDepth(5); // Orcs render on top of player by default
-        orc.play('orc_stand');
+    togglePause() {
+        if (this.gameIsOver) return;
 
-        this.physics.add.existing(orc);
-        orc.body.setCollideWorldBounds(true);
-        orc.body.setSize(20.4, 19.95, true);
-        orc.body.setOffset(40, 38);
+        this.isPaused = !this.isPaused;
 
-        // Initialize orc-specific properties
-        orc.orcIsMoving = false;
-        orc.orcDirection = { x: 0, y: 0 };
-        orc.orcLastEdgeHitTime = 0;
-        orc.orcLastHorizontalDirection = 'right';
-        orc.orcIsDead = false;
-        orc.orcIsAxeSwinging = false; // Track if orc is currently swinging axe
-        orc.hasRecentlyAttacked = false;
+        if (this.isPaused) {
+            // Pause physics
+            this.physics.pause();
 
-        // Add orc to group
-        this.orcs.add(orc);
+            // Stop player and all enemies
+            if (this.player && this.player.body) {
+                this.player.body.setVelocity(0, 0);
+            }
+            this.enemies.children.entries.forEach(enemy => {
+                if (!enemy.destroyed && enemy.body) {
+                    enemy.body.setVelocity(0, 0);
+                }
+            });
 
-        // Start the orc behavior cycle
-        this.scheduleOrcBehaviorChange(orc);
+            // Create pause overlay
+            this.pauseOverlay = this.add.rectangle(0, 0, 800, 600, 0x000000, 0.6);
+            this.pauseOverlay.setOrigin(0, 0);
+            this.pauseOverlay.setDepth(300);
+            this.pauseOverlay.setScrollFactor(0);
+
+            // Create pause text (reserved for menu)
+            this.pauseText = this.add.text(400, 300, 'PAUSED', {
+                fontSize: '64px',
+                fill: '#ffffff',
+                stroke: '#000000',
+                strokeThickness: 6
+            });
+            this.pauseText.setOrigin(0.5);
+            this.pauseText.setDepth(310);
+            this.pauseText.setScrollFactor(0);
+        } else {
+            // Resume physics
+            this.physics.resume();
+
+            // Remove pause overlay and text
+            if (this.pauseOverlay) {
+                this.pauseOverlay.destroy();
+                this.pauseOverlay = null;
+            }
+            if (this.pauseText) {
+                this.pauseText.destroy();
+                this.pauseText = null;
+            }
+        }
+    }
+
+    spawnEnemy(type = enemyTypes.ORC) {
+        // Create an enemy at a random position, maintaining minimum distance from player
+        const MIN_SPAWN_DISTANCE = 200; // Minimum distance from player
+        let randomX, randomY, distanceFromPlayer;
+
+        // Keep generating random positions until we find one far enough from the player
+        do {
+            randomX = Phaser.Math.Between(50, 750);
+            randomY = Phaser.Math.Between(50, 550);
+            distanceFromPlayer = Phaser.Math.Distance.Between(
+                randomX, randomY,
+                this.player.x, this.player.y
+            );
+        } while (distanceFromPlayer < MIN_SPAWN_DISTANCE);
+
+        // Get configuration for this enemy type
+        const config = enemyConfigs[type];
+        const enemy = this.add.sprite(randomX, randomY, config.assetKey, 0);
+        enemy.setScale(3);
+        enemy.setDepth(5); // Enemies render on top of player by default
+        enemy.setRotation(0); // Ensure rotation is reset to normal
+        enemy.type = type; // Store the enemy type for later reference
+
+        // Play the appropriate stand animation based on enemy type
+        enemy.play(`${type.toLowerCase()}_stand`);
+
+         this.physics.add.existing(enemy);
+         enemy.body.setCollideWorldBounds(false);
+         enemy.body.setSize(20.4, 19.95, true);
+         enemy.body.setOffset(40, 38);
+
+        // Initialize enemy-specific properties
+         enemy.isMoving = false;
+         enemy.direction = { x: 0, y: 0 };
+         enemy.lastEdgeHitTime = 0;
+         enemy.lastHorizontalDirection = 'right';
+         enemy.isDead = false;
+         enemy.isAxeSwinging = false; // Track if enemy is currently attacking
+         enemy.hasRecentlyAttacked = false;
+         enemy.isAttacking = false; // Track if wizard is currently attacking
+
+        // Add enemy to group
+        this.enemies.add(enemy);
+
+        // Start the enemy behavior cycle
+        this.scheduleEnemyBehaviorChange(enemy);
+
+        // If this is a wizard, schedule fireball attacks
+        if (type === enemyTypes.WIZARD) {
+            this.scheduleWizardAttack(enemy);
+        }
+    }
+
+    spawnFireball(wizard) {
+      
+        // Determine direction based on wizard's facing
+        const direction = wizard.flipX ? -1 : 1;
+        const FIREBALL_OFFSET = 100;
+        
+        // Create a fireball offset in front of the wizard based on facing direction
+        const fireballX = wizard.x + (direction * FIREBALL_OFFSET);
+        const fireball = this.add.sprite(fireballX, wizard.y, 'wizard', 105);
+        fireball.setScale(2);
+        fireball.setDepth(2); // Render above player but below most enemies
+        fireball.play('wizard_fireball');
+
+        // Add physics to fireball
+        this.physics.add.existing(fireball);
+        fireball.body.setSize(15, 15, true);
+        fireball.body.setOffset(44, 44);
+
+        // Set velocity based on direction
+        fireball.body.setVelocity(direction * 300, 0);
+
+        // Add to fireballs group
+        this.fireballs.add(fireball);
+
+        // Destroy fireball after 5 seconds (in case it goes off screen)
+        this.time.delayedCall(5000, () => {
+            if (fireball && !fireball.destroyed) {
+                fireball.destroy();
+            }
+        });
+        
+    }
+
+    scheduleWizardAttack(wizard) {
+      
+        // Only schedule attacks if wizard is not dead
+        if (!wizard.isDead) {
+            // Schedule next attack with randomized interval 
+            const attackInterval = Phaser.Math.Between(1500, 3000);
+
+            wizard.attackTimer = this.time.delayedCall(attackInterval, () => {
+                if (!wizard.destroyed && !wizard.isDead) {
+                    // Set attacking flag to prevent stand animation from overriding
+                    wizard.isAttacking = true;
+
+                    // Play attack animation
+                    wizard.play('wizard_attack');
+
+                    // Calculate when to spawn fireball (% through the animation)
+                    // wizard_attack: 12 frames at frameRate 10 = 1200ms total duration
+                    const fireballSpawnTime = 1200 * 0.8;
+
+                    // Schedule fireball spawn at 75% through animation
+                    this.time.delayedCall(fireballSpawnTime, () => {
+                        if (!wizard.destroyed && !wizard.isDead) {
+                            this.spawnFireball(wizard);
+                        }
+                    });
+
+                    // Listen for animation complete event to clear attacking flag
+                    wizard.once('animationcomplete-wizard_attack', () => {
+                        wizard.isAttacking = false;
+                    });
+
+                    // Schedule next attack
+                    this.scheduleWizardAttack(wizard);
+                }
+            });
+        }
+        
     }
 
      update() {
-       if (this.gameIsOver){
-          return;
-       }
-          // Update game logic here
+        if (this.gameIsOver || this.isPaused){
+           return;
+        }
+           // Update game logic here
           let isMoving = false;
          let movingRight = false;
          let movingLeft = false;
@@ -531,8 +915,8 @@ winGame() {
              }
          }
 
-         // Handle space bar for sword swing
-       if (Phaser.Input.Keyboard.JustDown(this.spaceBar) && this.time.now - this.lastAttackTime >= 700 ) {
+          // Handle space bar for sword swing
+        if (Phaser.Input.Keyboard.JustDown(this.spaceBar) && this.time.now - this.lastAttackTime >= 700 && this.isGameStarted) {
              this.lastAttackTime = this.time.now;
              this.player.play('sword');
              this.isPlayerSwinging = true;
@@ -581,106 +965,138 @@ winGame() {
             }
         }
 
-         // Update all orcs
-         this.orcs.children.entries.forEach(orc => {
-             if (orc.destroyed) return;
+         // Update all enemies
+         this.enemies.children.entries.forEach(enemy => {
+             if (enemy.destroyed) return;
 
-             // Update orc movement
-             if (!orc.orcIsDead) {
-                 if (orc.orcIsMoving) {
-                     orc.body.setVelocity(orc.orcDirection.x * 160, orc.orcDirection.y * 160);
+             // Update enemy movement
+             if (!enemy.isDead) {
+                 if (enemy.isMoving) {
+                     enemy.body.setVelocity(enemy.direction.x * 160, enemy.direction.y * 160);
                  } else {
-                     orc.body.setVelocity(0, 0);
+                     enemy.body.setVelocity(0, 0);
                  }
              }
 
-            // Update orc animations and direction
-            let orcShouldFaceLeft = false;
+            // Update enemy animations and direction
+            let enemyShouldFaceLeft = false;
 
             // Update horizontal direction based on movement
-            if (orc.orcDirection.x > 0) {
+            if (enemy.direction.x > 0) {
                 // Moving right
-                orcShouldFaceLeft = false;
-                orc.orcLastHorizontalDirection = 'right';
-            } else if (orc.orcDirection.x < 0) {
+                enemyShouldFaceLeft = false;
+                enemy.lastHorizontalDirection = 'right';
+            } else if (enemy.direction.x < 0) {
                 // Moving left
-                orcShouldFaceLeft = true;
-                orc.orcLastHorizontalDirection = 'left';
-            } else if (orc.orcDirection.y !== 0) {
+                enemyShouldFaceLeft = true;
+                enemy.lastHorizontalDirection = 'left';
+            } else if (enemy.direction.y !== 0) {
                 // Moving vertically only, use last horizontal direction
-                orcShouldFaceLeft = orc.orcLastHorizontalDirection === 'left';
+                enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
             } else {
                 // Not moving, use last horizontal direction
-                orcShouldFaceLeft = orc.orcLastHorizontalDirection === 'left';
+                enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
             }
 
             // Apply flip based on direction
-            orc.setFlipX(orcShouldFaceLeft);
+            enemy.setFlipX(enemyShouldFaceLeft);
 
-             // Play animations
-             if (!orc.orcIsDead && !orc.orcIsAxeSwinging) {
-                 // Check if player is nearby (within 100 pixels)
-                 const distanceToPlayer = Phaser.Math.Distance.Between(orc.x, orc.y, this.player.x, this.player.y);
+               // Play animations
+               if (!enemy.isDead && !enemy.isAxeSwinging) {
+                   // Check if player is nearby (within 100 pixels) - but only for non-wizard enemies
+                   const distanceToPlayer = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y);
 
-                 if (distanceToPlayer < 100) {
-                     // Player is nearby, play axe animation
-                     if (!orc.anims.isPlaying || orc.anims.currentAnim.key !== 'orc_axe') {
-                         orc.play('orc_axe');
-                         orc.orcIsAxeSwinging = true;
+                   if (distanceToPlayer < 100 && enemy.type !== enemyTypes.WIZARD) {
+                       // Player is nearby, play attack animation (but not for wizards)
+                       const typePrefix = enemy.type.toLowerCase();
+                       const attackAnimKey = `${typePrefix}_attack`;
+                       if (!enemy.anims.isPlaying || enemy.anims.currentAnim.key !== attackAnimKey) {
+                           enemy.play(attackAnimKey);
+                           enemy.isAxeSwinging = true;
 
-                         // Set up callback to revert animation after axe swing completes
-                         orc.once('animationcomplete-orc_axe', () => {
-                             orc.orcIsAxeSwinging = false;
-                             // Resume normal animations
-                             if (orc.orcIsMoving) {
-                                 orc.play('orc_walk');
-                             } else {
-                                 orc.play('orc_stand');
-                             }
-                         });
-                     }
-                 } else {
-                     // Player is not nearby, use normal animations
-                     if (orc.orcIsMoving) {
-                         if (!orc.anims.isPlaying || orc.anims.currentAnim.key !== 'orc_walk') {
-                             orc.play('orc_walk');
-                         }
-                     } else {
-                         if (!orc.anims.isPlaying || orc.anims.currentAnim.key !== 'orc_stand') {
-                             orc.play('orc_stand');
-                         }
-                     }
-                 }
+                           // Set up callback to revert animation after attack completes
+                           enemy.once(`animationcomplete-${attackAnimKey}`, () => {
+                               enemy.isAxeSwinging = false;
+                               // Resume normal animations
+                               if (enemy.isMoving) {
+                                   enemy.play(`${typePrefix}_walk`);
+                               } else {
+                                   enemy.play(`${typePrefix}_stand`);
+                               }
+                           });
+                       }
+                   } else if (enemy.type !== enemyTypes.WIZARD && !enemy.isAttacking) {
+                        // Player is not nearby, use normal animations (skip for attacking wizards)
+                        const typePrefix = enemy.type.toLowerCase();
+                        if (enemy.isMoving) {
+                            const walkAnimKey = `${typePrefix}_walk`;
+                            if (!enemy.anims.isPlaying || enemy.anims.currentAnim.key !== walkAnimKey) {
+                                enemy.play(walkAnimKey);
+                            }
+                        } else {
+                            const standAnimKey = `${typePrefix}_stand`;
+                            if (!enemy.anims.isPlaying || enemy.anims.currentAnim.key !== standAnimKey) {
+                                enemy.play(standAnimKey);
+                            }
+                        }
+                    } else if (enemy.type === enemyTypes.WIZARD && !enemy.isAttacking) {
+                        // Wizard not attacking, use normal animations
+                        const typePrefix = enemy.type.toLowerCase();
+                        if (enemy.isMoving) {
+                            const walkAnimKey = `${typePrefix}_walk`;
+                            if (!enemy.anims.isPlaying || enemy.anims.currentAnim.key !== walkAnimKey) {
+                                enemy.play(walkAnimKey);
+                            }
+                        } else {
+                            const standAnimKey = `${typePrefix}_stand`;
+                            if (!enemy.anims.isPlaying || enemy.anims.currentAnim.key !== standAnimKey) {
+                                enemy.play(standAnimKey);
+                            }
+                        }
+                    }
+              }
+
+              // Check enemy collisions with screen edges and reverse direction
+              const enemyWidth = enemy.body.width / 2;
+              const enemyHeight = enemy.body.height / 2;
+              const enemyBodyOffsetX = enemy.body.offset.x;
+              const enemyBodyOffsetY = enemy.body.offset.y;
+              const currentTime = this.time.now;
+              const timeSinceLastEdgeHit = currentTime - enemy.lastEdgeHitTime;
+              const SCREEN_BUFFER = 40; // 40 pixel buffer to keep enemies on screen
+
+              // Only allow direction reversal if more than 50ms has passed since last edge hit
+              if (timeSinceLastEdgeHit > 50) {
+                  if (enemy.x + enemyBodyOffsetX - enemyWidth < SCREEN_BUFFER) {
+                      // Hit left edge buffer, move right
+                      enemy.direction.x = Math.abs(enemy.direction.x);
+                      enemy.lastEdgeHitTime = currentTime;
+                  } else if (enemy.x + enemyBodyOffsetX + enemyWidth > 800 - SCREEN_BUFFER) {
+                      // Hit right edge buffer, move left
+                      enemy.direction.x = -Math.abs(enemy.direction.x);
+                      enemy.lastEdgeHitTime = currentTime;
+                  }
+
+                  if (enemy.y + enemyBodyOffsetY - enemyHeight < SCREEN_BUFFER) {
+                      // Hit top edge buffer, move down
+                      enemy.direction.y = Math.abs(enemy.direction.y);
+                      enemy.lastEdgeHitTime = currentTime;
+                  } else if (enemy.y + enemyBodyOffsetY + enemyHeight > 600 - SCREEN_BUFFER) {
+                      // Hit bottom edge buffer, move up
+                      enemy.direction.y = -Math.abs(enemy.direction.y);
+                      enemy.lastEdgeHitTime = currentTime;
+                  }
+              }
+         });
+
+         // Update fireballs - remove ones that go off-screen
+         this.fireballs.children.entries.forEach(fireball => {
+             if (fireball.destroyed) return;
+
+             // Check if fireball has gone off-screen
+             if (fireball.x < -50 || fireball.x > 850 || fireball.y < -50 || fireball.y > 650) {
+                 fireball.destroy();
              }
-
-            // Check orc collisions with screen edges and reverse direction
-            const orcWidth = orc.displayWidth / 2;
-            const orcHeight = orc.displayHeight / 2;
-            const currentTime = this.time.now;
-            const timeSinceLastEdgeHit = currentTime - orc.orcLastEdgeHitTime;
-
-            // Only allow direction reversal if more than 50ms has passed since last edge hit
-            if (timeSinceLastEdgeHit > 50) {
-                if (orc.x - orcWidth <= 0) {
-                    // Hit left edge, move right
-                    orc.orcDirection.x = Math.abs(orc.orcDirection.x);
-                    orc.orcLastEdgeHitTime = currentTime;
-                } else if (orc.x + orcWidth >= 800) {
-                    // Hit right edge, move left
-                    orc.orcDirection.x = -Math.abs(orc.orcDirection.x);
-                    orc.orcLastEdgeHitTime = currentTime;
-                }
-
-                if (orc.y - orcHeight <= 0) {
-                    // Hit top edge, move down
-                    orc.orcDirection.y = Math.abs(orc.orcDirection.y);
-                    orc.orcLastEdgeHitTime = currentTime;
-                } else if (orc.y + orcHeight >= 600) {
-                    // Hit bottom edge, move up
-                    orc.orcDirection.y = -Math.abs(orc.orcDirection.y);
-                    orc.orcLastEdgeHitTime = currentTime;
-                }
-            }
          });
      }
 
@@ -690,7 +1106,7 @@ winGame() {
             case entityTypes.PLAYER:
                 bloodColor = 0xff0000;
                 break;
-            case entityTypes.ORC:
+            case entityTypes.ENEMY:
                 bloodColor = 0x330000;
                 break;
             default:
@@ -722,13 +1138,13 @@ winGame() {
         }
     }
 
-    scheduleOrcBehaviorChange(orc) {
-          // Don't change behavior if orc is swinging axe or dead
-          if (!orc.orcIsAxeSwinging && !orc.orcIsDead) {
+    scheduleEnemyBehaviorChange(enemy) {
+          // Don't change behavior if enemy is swinging axe or dead
+          if (!enemy.isAxeSwinging && !enemy.isDead) {
               // Toggle between moving and stationary
-              orc.orcIsMoving = !orc.orcIsMoving;
+              enemy.isMoving = !enemy.isMoving;
 
-              if (orc.orcIsMoving) {
+              if (enemy.isMoving) {
                   // Pick a random direction (8 directions including diagonals)
                   const directions = [
                       { x: 0, y: -1 },  // up
@@ -740,148 +1156,150 @@ winGame() {
                       { x: -1, y: 0 },  // left
                       { x: -1, y: -1 }  // up-left
                   ];
-                  orc.orcDirection = Phaser.Utils.Array.GetRandom(directions);
+                  enemy.direction = Phaser.Utils.Array.GetRandom(directions);
               }
           }
 
           // Schedule next behavior change with randomized interval (2000-4000ms)
-          // If orc is swinging axe, check again sooner (500ms) to see if it's done
-          const behaviorInterval = orc.orcIsAxeSwinging ? 500 : Phaser.Math.Between(2000, 4000);
+          // If enemy is swinging axe, check again sooner (500ms) to see if it's done
+          const behaviorInterval = enemy.isAxeSwinging ? 500 : Phaser.Math.Between(2000, 4000);
 
-          // Store timer reference on orc for proper cleanup
-          orc.behaviorTimer = this.time.delayedCall(behaviorInterval, () => {
-              if (!orc.destroyed && !orc.orcIsDead) {
-                  this.scheduleOrcBehaviorChange(orc);
+          // Store timer reference on enemy for proper cleanup
+          enemy.behaviorTimer = this.time.delayedCall(behaviorInterval, () => {
+              if (!enemy.destroyed && !enemy.isDead) {
+                  this.scheduleEnemyBehaviorChange(enemy);
               }
           });
       }
 
-      handlePlayerOrcCollision(player, orc) {
-        if (this.gameIsOver){
-          return;
-        }
+       handlePlayerEnemyCollision(player, enemy) {
+         if (this.gameIsOver){
+           return;
+         }
 
-          const orcIsToTheLeft = orc.x < player.x;
-          // Only trigger if player is currently swinging sword and orc is not already dead
-          if (this.isPlayerSwinging && !orc.orcIsDead) {
-              // Check if orc is on the correct side based on player's facing direction
-              const playerFacingLeft = player.flipX;
+           const enemyIsToTheLeft = enemy.x < player.x;
+           // Only trigger if player is currently swinging sword and enemy is not already dead
+           if (this.isPlayerSwinging && !enemy.isDead) {
+               // Check if enemy is on the correct side based on player's facing direction
+               const playerFacingLeft = player.flipX;
 
-              // If player is facing left, only hit orcs to the left
-              // If player is facing right, only hit orcs to the right
-              if ((playerFacingLeft && !orcIsToTheLeft) || (!playerFacingLeft && orcIsToTheLeft)) {
-                  // Orc is on the wrong side, don't hit it
-                  return;
-              }
+               // If player is facing left, only hit enemies to the left
+               // If player is facing right, only hit enemies to the right
+               if ((playerFacingLeft && !enemyIsToTheLeft) || (!playerFacingLeft && enemyIsToTheLeft)) {
+                   // Enemy is on the wrong side, don't hit it
+                   return;
+               }
 
-               console.log('Orc not dead, triggering death sequence');
-        // Create blood particles
-        this.createBloodParticles(orc.x, orc.y, entityTypes.ORC);
+                console.log('Enemy not dead, triggering death sequence');
+         // Create blood particles
+         this.createBloodParticles(enemy.x, enemy.y, entityTypes.ENEMY);
 
-        // Mark orc as dead
-        orc.orcIsDead = true;
+         // Mark enemy as dead
+         enemy.isDead = true;
 
-        // Lower orc's depth so it renders under the player after death
-        orc.setDepth(-1);
+         // Lower enemy's depth so it renders under the player after death
+         enemy.setDepth(-1);
 
-        // Stop orc movement
-        orc.body.setVelocity(0, 0);
+         // Stop enemy movement
+         enemy.body.setVelocity(0, 0);
 
-        // Play death animation
-        orc.play('orc_die');
+         // Play death animation
+         const typePrefix = enemy.type.toLowerCase();
+         enemy.play(`${typePrefix}_die`);
 
-               // After death animation completes, start fade out
-               orc.once('animationcomplete-orc_die', () => {
-                   // Stop animation so the last frame stays visible
-                   orc.stop();
+                 // After death animation completes, start fade out
+                 enemy.once(`animationcomplete-${typePrefix}_die`, () => {
+                     // Stop animation so the last frame stays visible
+                     enemy.stop();
 
-                   // Create a tween to fade out over 2 seconds
-                   orc.fadeTween = this.tweens.add({
-                       targets: orc,
-                       alpha: 0,
-                       duration: 2000,
-                       ease: 'Linear',
-                       onComplete: () => {
-                           // Clean up the tween reference
-                           if (orc.fadeTween) {
-                               orc.fadeTween = null;
-                           }
-                           orc.destroy();
-                           // Check if all orcs are defeated
-                           this.checkWinCondition();
+                     // Create a tween to fade out over 2 seconds
+                     enemy.fadeTween = this.tweens.add({
+                         targets: enemy,
+                         alpha: 0,
+                         duration: 2000,
+                         ease: 'Linear',
+                         onComplete: () => {
+                             // Clean up the tween reference
+                            if (enemy.fadeTween) {
+                                enemy.fadeTween = null;
+                            }
+                            enemy.destroy();
+                            // Check if all enemies are defeated
+                            this.checkWinCondition();
+                        }
+                    });
+                });
+           }
+          else{
+            // Only cause damage if enemy is not dead and not already swinging axe
+            // Also skip damage for wizards
+            if (!enemy.isDead && !enemy.hasRecentlyAttacked && enemy.type !== enemyTypes.WIZARD) {
+                // Check if player is currently invulnerable to damage
+                if (this.playerLastHitTime && this.time.now - this.playerLastHitTime < 1000) {
+                    // Player is invulnerable, don't take damage
+                    return;
+                }
+
+                const enemyFacingLeft = enemy.flipX;
+                // If enemy is facing left, only hit player to the left
+                // If enemy is facing right, only hit player to the right
+                if ((enemyFacingLeft && enemyIsToTheLeft) || (!enemyFacingLeft && !enemyIsToTheLeft)) {
+                    // Enemy is on the wrong side, don't hit it
+                    return;
+                }
+                    enemy.hasRecentlyAttacked = true;
+                    this.time.delayedCall(500, () => {
+                      enemy.hasRecentlyAttacked = false;
+                    })
+
+         // Set player invulnerability timer
+         this.playerLastHitTime = this.time.now;
+
+         // Create blood particles
+         this.createBloodParticles(player.x, player.y, entityTypes.PLAYER);
+
+         // Reduce player health
+         player.health -= 1;
+
+                   // Update health display
+                   if (this.healthText) {
+                       this.healthText.setText('Health: ' + player.health);
+                   }
+
+                   // Visual feedback - flash player red and set transparency
+                   player.setTint(0xff0000);
+                   player.alpha = 0.7; // Make player semi-transparent
+
+                   // Show fullscreen red effect for 10ms
+                   this.hitEffect.setVisible(true);
+                   this.time.delayedCall(10, () => {
+                       if (this.hitEffect) {
+                           this.hitEffect.setVisible(false);
                        }
                    });
-               });
-          }
-        else{
-          // Only cause damage if orc is not dead and not already swinging axe
-          if (!orc.orcIsDead && !orc.hasRecentlyAttacked) {
-              // Check if player is currently invulnerable to damage
-              if (this.playerLastHitTime && this.time.now - this.playerLastHitTime < 1000) {
-                  // Player is invulnerable, don't take damage
-                  return;
-              }
 
-              const orcFacingLeft = orc.flipX;
-              // If ork is facing left, only hit player to the left
-              // If ork is facing right, only hit player to the right
-              if ((orcFacingLeft && orcIsToTheLeft) || (!orcFacingLeft && !orcIsToTheLeft)) {
-                  // Orc is on the wrong side, don't hit it
-                  return;
-              }
-                  orc.hasRecentlyAttacked = true;
-                  this.time.delayedCall(500, () => {
-                    orc.hasRecentlyAttacked = false;
-                  })
+                   // Gradually restore alpha over the invulnerability period
+                   this.time.delayedCall(1000, () => {
+                       if (player && !player.destroyed) {
+                           player.alpha = 1;
+                       }
+                   });
 
-        // Set player invulnerability timer
-        this.playerLastHitTime = this.time.now;
+                   this.time.delayedCall(200, () => {
+                       if (player && !player.destroyed) {
+                           player.clearTint();
+                       }
+                   });
 
-        // Create blood particles
-        this.createBloodParticles(player.x, player.y, entityTypes.PLAYER);
+         // Check for game over
+         if (player.health <= 0) {
+             player.alpha = 1;
+             this.gameOver();
+         }
+           }
 
-        // Reduce player health
-        player.health -= 1;
-
-                  // Update health display
-                  if (this.healthText) {
-                      this.healthText.setText('Health: ' + player.health);
-                  }
-
-                  // Visual feedback - flash player red and set transparency
-                  player.setTint(0xff0000);
-                  player.alpha = 0.7; // Make player semi-transparent
-
-                  // Show fullscreen red effect for 10ms
-                  this.hitEffect.setVisible(true);
-                  this.time.delayedCall(10, () => {
-                      if (this.hitEffect) {
-                          this.hitEffect.setVisible(false);
-                      }
-                  });
-
-                  // Gradually restore alpha over the invulnerability period
-                  this.time.delayedCall(1000, () => {
-                      if (player && !player.destroyed) {
-                          player.alpha = 1;
-                      }
-                  });
-
-                  this.time.delayedCall(200, () => {
-                      if (player && !player.destroyed) {
-                          player.clearTint();
-                      }
-                  });
-
-        // Check for game over
-        if (player.health <= 0) {
-            player.alpha = 1;
-            this.gameOver();
-        }
-          }
-
-        }
-      }
+         }
+       }
 
     gameOver() {
         if(this.gameIsOver){
@@ -894,15 +1312,15 @@ winGame() {
             this.player.body.setVelocity(0, 0);
         }
 
-        // Stop all orcs
-        const orcsToStop = [...this.orcs.children.entries];
-        orcsToStop.forEach(orc => {
-            if (!orc.destroyed) {
-                if (orc.body) {
-                    orc.body.setVelocity(0, 0);
-                }
-            }
-        });
+         // Stop all enemies
+         const enemiesToStop = [...this.enemies.children.entries];
+         enemiesToStop.forEach(enemy => {
+             if (!enemy.destroyed) {
+                 if (enemy.body) {
+                     enemy.body.setVelocity(0, 0);
+                 }
+             }
+         });
 
         // Create black overlay for fade effect
         this.blackOverlay = this.add.rectangle(0, 0, 800, 600, 0x000000);
@@ -923,27 +1341,32 @@ winGame() {
                 // Stop the death animation
                 this.player.stop();
 
-                // Clean up orcs
-                const orcsToDestroy = [...this.orcs.children.entries];
-                orcsToDestroy.forEach(orc => {
-                    if (!orc.destroyed) {
-                        if (orc.behaviorTimer) {
-                            orc.behaviorTimer.remove(false);
-                        }
-                        if (orc.fadeTween) {
-                            orc.fadeTween.complete();
-                            orc.fadeTween = null;
-                        }
-                        orc.off('animationcomplete-orc_die');
-                        orc.off('animationcomplete-orc_axe');
-                        if (orc.anims) {
-                            orc.anims.stop();
-                        }
-                        orc.alpha = 1;
-                        orc.destroy();
-                    }
-                });
-                this.orcs.clear();
+                   // Clean up enemies
+                   const enemiesToDestroy = [...this.enemies.children.entries];
+                   enemiesToDestroy.forEach(enemy => {
+                       if (!enemy.destroyed) {
+                           if (enemy.behaviorTimer) {
+                               enemy.behaviorTimer.remove(false);
+                           }
+                           if (enemy.attackTimer) {
+                               enemy.attackTimer.remove(false);
+                           }
+                           if (enemy.fadeTween) {
+                               enemy.fadeTween.complete();
+                               enemy.fadeTween = null;
+                           }
+                           // Use enemy type to get correct animation keys
+                           const typePrefix = enemy.type ? enemy.type.toLowerCase() : 'orc';
+                           enemy.off(`animationcomplete-${typePrefix}_die`);
+                           enemy.off(`animationcomplete-${typePrefix}_attack`);
+                           if (enemy.anims) {
+                               enemy.anims.stop();
+                           }
+                           enemy.alpha = 1;
+                           enemy.destroy();
+                       }
+                   });
+                   this.enemies.clear();
 
                 // Display game over text
                 this.resultText = this.add.text(400, 250, 'GAME OVER', {
@@ -969,23 +1392,24 @@ winGame() {
                 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
                 this.playAgainButton.setDepth(210);
 
-                // Function to restart the game
+                 // Function to restart the game
                 const restartGame = () => {
-                    if (this.spaceKeyListener) {
-                        this.spaceKeyListener.removeAllListeners();
-                        this.spaceKeyListener.destroy();
-                        this.spaceKeyListener = null;
-                    }
-                    if (this.blackOverlay) {
-                        this.blackOverlay.destroy();
-                        this.blackOverlay = null;
-                    }
-                    this.player.health = 3;
-                    this.time.delayedCall(10, () => {
-                        this.currentLevelIndex = 0;
-                        this.initializeGame();
-                    });
-                };
+                     if (this.spaceKeyListener) {
+                         this.spaceKeyListener.removeAllListeners();
+                         this.spaceKeyListener.destroy();
+                         this.spaceKeyListener = null;
+                     }
+                     if (this.blackOverlay) {
+                         this.blackOverlay.destroy();
+                         this.blackOverlay = null;
+                     }
+                     this.player.health = 3;
+                     this.isGameStarted = false;
+                     this.time.delayedCall(10, () => {
+                         this.currentLevelIndex = 0;
+                         this.initializeGame();
+                     });
+                 };
 
                 this.playAgainButton.on('pointerdown', restartGame);
 
