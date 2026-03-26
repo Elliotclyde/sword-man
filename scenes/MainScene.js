@@ -7,7 +7,8 @@ const entityTypes = {
 // Enemy type definitions for extensibility
 const enemyTypes = {
     ORC: "ORC",
-    WIZARD: "WIZARD"
+    WIZARD: "WIZARD",
+    WEREWOLF: "WEREWOLF"
 };
 
 // Enemy configuration: sprite asset, frame dimensions, and attack animation
@@ -23,6 +24,12 @@ const enemyConfigs = {
         frameWidth: 100,
         frameHeight: 100,
         attackAnimKey: 'wizard_attack'
+    },
+    [enemyTypes.WEREWOLF]: {
+        assetKey: 'werewolf',
+        frameWidth: 100,
+        frameHeight: 100,
+        attackAnimKey: 'werewolf_attack'
     }
 };
 
@@ -31,36 +38,51 @@ class MainScene extends Phaser.Scene {
         super('MainScene');
 
          // Define game levels with enemy configurations
-         this.levels = [
+          this.levels = [
+              { 
+                  level: 1, 
+                  enemies: [
+                      { type: enemyTypes.ORC, count: 1 }
+                  ], 
+                  playerStartX: 100, 
+                  playerStartY: 100 
+              },
              { 
-                 level: 1, 
+                 level: 2, 
                  enemies: [
-                     { type: enemyTypes.ORC, count: 1 }
+                     { type: enemyTypes.ORC, count: 5}
+                 ], 
+                 playerStartX: 600, 
+                 playerStartY: 500 
+             },
+             { 
+                 level: 3, 
+                 enemies: [
+                     { type: enemyTypes.ORC, count: 5 },
+                     { type: enemyTypes.WIZARD, count: 1 }
                  ], 
                  playerStartX: 100, 
                  playerStartY: 100 
              },
-            { 
-                level: 2, 
-                enemies: [
-                    { type: enemyTypes.ORC, count: 5}
-                ], 
-                playerStartX: 600, 
-                playerStartY: 500 
-            },
-            { 
-                level: 3, 
-                enemies: [
-                    { type: enemyTypes.ORC, count: 5 },
-                    { type: enemyTypes.WIZARD, count: 1 }
-                ], 
-                playerStartX: 100, 
-                playerStartY: 100 
-            }
-        ];
+             {
+                 level: 4,
+                 enemies: [
+                     { type: enemyTypes.ORC, count: 5 },
+                     { type: enemyTypes.WEREWOLF, count: 2 }
+                 ],
+                 playerStartX: 100,
+                 playerStartY: 100
+             }
+         ];
 
-        // Current level index
-        this.currentLevelIndex = 0;
+         // Werewolf detection and movement constants
+         this.WEREWOLF_DETECTION_RANGE = 300;    // pixels - when werewolf notices player
+         this.WEREWOLF_PATROL_SPEED = 100;       // pixels/second
+         this.WEREWOLF_HUNT_SPEED = 160;         // pixels/second - faster when hunting
+
+         // Current level index
+         this.currentLevelIndex = 0;
+
     }
 
     preload() {
@@ -79,6 +101,11 @@ class MainScene extends Phaser.Scene {
 
         // Wizard.png is set up similarly to Soldier.png
         this.load.spritesheet('wizard', 'assets/Wizard.png', {
+            frameWidth: 100,
+            frameHeight: 100
+        });
+
+        this.load.spritesheet('werewolf', 'assets/Werewolf.png', {
             frameWidth: 100,
             frameHeight: 100
         });
@@ -233,12 +260,15 @@ class MainScene extends Phaser.Scene {
           this.isDashing = false; // Track if player is currently dashing
           this.dashEndTime = 0; // Track when the dash ends
           this.lastDashTime = 0; // Track when the last dash was used
+          this.lastDashDirection = 0; // Track angle of last dash for particle emission
+          this.lastDashParticleTime = 0; // Track last particle emission time during dash
 
           // Track last attack time
           this.lastAttackTime = 0; // Track when the last dash was used
 
          // Track last time player was hit
          this.playerLastHitTime = 0; // Track when the player was last hit by an enemy
+
 
           if (this.playerEnemyCollider){
             this.physics.world.removeCollider(this.playerEnemyCollider);
@@ -252,6 +282,8 @@ class MainScene extends Phaser.Scene {
               this.physics.world.removeCollider(this.playerFireballCollider);
           }
           this.playerFireballCollider = this.physics.add.overlap(this.player, this.fireballs, this.handleFireballHit, null, this);
+
+   this.player.health = 3;
 
     // Create health display text
      this.healthText = this.add.text(750, 550, `Health: ${this.player.health}`, {
@@ -306,23 +338,26 @@ class MainScene extends Phaser.Scene {
             }
         }
 
-    handleFireballHit(player, fireball) {
-        if (this.gameIsOver || fireball.destroyed) {
-            return;
-        }
+     handleFireballHit(player, fireball) {
+         if (this.gameIsOver || fireball.destroyed) {
+             return;
+         }
 
-        // Check if player is currently invulnerable to damage
-        if (this.playerLastHitTime && this.time.now - this.playerLastHitTime < 1000) {
-            // Player is invulnerable, destroy fireball but don't take damage
-            fireball.destroy();
-            return;
-        }
+         // Check if player is currently invulnerable to damage
+         if (this.playerLastHitTime && this.time.now - this.playerLastHitTime < 1000) {
+             // Player is invulnerable, destroy fireball but don't take damage
+             fireball.destroy();
+             return;
+         }
 
-        // Set player invulnerability timer
-        this.playerLastHitTime = this.time.now;
+         // Set player invulnerability timer
+         this.playerLastHitTime = this.time.now;
 
-        // Create blood particles
-        this.createBloodParticles(player.x, player.y, entityTypes.PLAYER);
+         // Create orange fireball particles
+         this.createFireballParticles(player.x, player.y);
+
+         // Create blood particles
+         this.createBloodParticles(player.x, player.y, entityTypes.PLAYER);
 
         // Reduce player health
         player.health -= 1;
@@ -641,21 +676,51 @@ class MainScene extends Phaser.Scene {
           });
 
           this.anims.create({
-              key: 'wizard_fireball',
-              frames: [
-                  { key: 'wizard', frame: 105 },
-                  { key: 'wizard', frame: 106 },
-                  { key: 'wizard', frame: 107 },
-                  { key: 'wizard', frame: 108 },
-                  { key: 'wizard', frame: 109 }
-              ],
-              frameRate: 10,
-              repeat: -1
-          });
+               key: 'wizard_fireball',
+               frames: [
+                   { key: 'wizard', frame: 105 },
+                   { key: 'wizard', frame: 106 },
+                   { key: 'wizard', frame: 107 },
+                   { key: 'wizard', frame: 108 },
+                   { key: 'wizard', frame: 109 }
+               ],
+               frameRate: 10,
+               repeat: -1
+           });
 
-        this.anims.create({
-            key: 'player_die',
-            frames: [
+         // WEREWOLF animations
+         this.anims.create({
+             key: 'werewolf_stand',
+             frames: this.anims.generateFrameNumbers('werewolf', { start: 0, end: 5 }),
+             frameRate: 10,
+             repeat: -1
+         });
+
+         this.anims.create({
+             key: 'werewolf_walk',
+             frames: this.anims.generateFrameNumbers('werewolf', { start: 13, end: 20 }),
+             frameRate: 10,
+             repeat: -1
+         });
+
+         this.anims.create({
+             key: 'werewolf_attack',
+             frames: this.anims.generateFrameNumbers('werewolf', { start: 26, end: 34 }),
+             frameRate: 10,
+             repeat: 0
+         });
+
+         this.anims.create({
+             key: 'werewolf_die',
+             frames: this.anims.generateFrameNumbers('werewolf', { start: 65, end: 69 }),
+             frameRate: 10,
+             repeat: 0
+         });
+
+         this.anims.create({
+             key: 'player_die',
+             frames: [
+
                 { key: 'soldier', frame: 54 },
                 { key: 'soldier', frame: 55 },
                 { key: 'soldier', frame: 56 },
@@ -772,39 +837,47 @@ class MainScene extends Phaser.Scene {
          enemy.body.setOffset(40, 38);
 
         // Initialize enemy-specific properties
-         enemy.isMoving = false;
-         enemy.direction = { x: 0, y: 0 };
-         enemy.lastEdgeHitTime = 0;
-         enemy.lastHorizontalDirection = 'right';
-         enemy.isDead = false;
-         enemy.isAxeSwinging = false; // Track if enemy is currently attacking
-         enemy.hasRecentlyAttacked = false;
-         enemy.isAttacking = false; // Track if wizard is currently attacking
+          enemy.isMoving = false;
+          enemy.direction = { x: 0, y: 0 };
+          enemy.lastEdgeHitTime = 0;
+          enemy.lastHorizontalDirection = 'right';
+          enemy.isDead = false;
+          enemy.isAxeSwinging = false; // Track if enemy is currently attacking
+          enemy.hasRecentlyAttacked = false;
+          enemy.isAttacking = false; // Track if wizard is currently attacking
+          
+          // Werewolf-specific properties
+          if (type === enemyTypes.WEREWOLF) {
+              enemy.hasDetectedPlayer = false;  // Track if player has been spotted
+              enemy.huntSpeed = this.WEREWOLF_PATROL_SPEED; // Current movement speed
+          }
 
-        // Add enemy to group
-        this.enemies.add(enemy);
+         // Add enemy to group
+         this.enemies.add(enemy);
 
-        // Start the enemy behavior cycle
-        this.scheduleEnemyBehaviorChange(enemy);
+         // Start the enemy behavior cycle
+         this.scheduleEnemyBehaviorChange(enemy);
 
-        // If this is a wizard, schedule fireball attacks
-        if (type === enemyTypes.WIZARD) {
-            this.scheduleWizardAttack(enemy);
-        }
+         // If this is a wizard, schedule fireball attacks
+         if (type === enemyTypes.WIZARD) {
+             this.scheduleWizardAttack(enemy);
+         }
+
     }
 
-    spawnFireball(wizard) {
-      
-        // Determine direction based on wizard's facing
-        const direction = wizard.flipX ? -1 : 1;
-        const FIREBALL_OFFSET = 100;
-        
-        // Create a fireball offset in front of the wizard based on facing direction
-        const fireballX = wizard.x + (direction * FIREBALL_OFFSET);
-        const fireball = this.add.sprite(fireballX, wizard.y, 'wizard', 105);
-        fireball.setScale(2);
-        fireball.setDepth(2); // Render above player but below most enemies
-        fireball.play('wizard_fireball');
+     spawnFireball(wizard) {
+       
+         // Determine direction based on wizard's facing
+         const direction = wizard.flipX ? -1 : 1;
+         const FIREBALL_OFFSET = 100;
+         
+         // Create a fireball offset in front of the wizard based on facing direction
+         const fireballX = wizard.x + (direction * FIREBALL_OFFSET);
+         const fireball = this.add.sprite(fireballX, wizard.y, 'wizard', 105);
+         fireball.setScale(2);
+         fireball.setDepth(2); // Render above player but below most enemies
+         fireball.flipX = wizard.flipX; // Mirror fireball animation direction with wizard
+         fireball.play('wizard_fireball');
 
         // Add physics to fireball
         this.physics.add.existing(fireball);
@@ -872,31 +945,40 @@ class MainScene extends Phaser.Scene {
            // Update game logic here
           let isMoving = false;
          let movingRight = false;
-         let movingLeft = false;
-         let movingVertical = false;
+          let movingLeft = false;
+          let movingVertical = false;
 
-         // Check if dash is still active
-         const isDashActive = this.time.now < this.dashEndTime;
-         const dashSpeedMultiplier = isDashActive ? 3.5 : 1; // 3.5x speed while dashing
+          // Check if dash is still active
+          const isDashActive = this.time.now < this.dashEndTime;
+          const dashSpeedMultiplier = isDashActive ? 3.5 : 1; // 3.5x speed while dashing
 
-         if (this.cursors.left.isDown) {
-             this.player.body.setVelocityX(-160 * dashSpeedMultiplier);
-             isMoving = true;
-             movingLeft = true;
-             this.lastHorizontalDirection = 'left';
-         } else if (this.cursors.right.isDown) {
-             this.player.body.setVelocityX(160 * dashSpeedMultiplier);
-             isMoving = true;
-             movingRight = true;
-             this.lastHorizontalDirection = 'right';
-         } else {
-             this.player.body.setVelocityX(0);
-         }
+          // Emit particles continuously during dash (every 50ms)
+          if (isDashActive && this.lastDashParticleTime > 0) {
+              if (this.time.now - this.lastDashParticleTime >= 50) {
+                  this.emitDashParticles(this.player.x, this.player.y, this.lastDashDirection);
+                  this.lastDashParticleTime = this.time.now;
+              }
+          }
 
-         if (this.cursors.up.isDown) {
-             this.player.body.setVelocityY(-160 * dashSpeedMultiplier);
-             isMoving = true;
-             movingVertical = true;
+          if (this.cursors.left.isDown) {
+              this.player.body.setVelocityX(-160 * dashSpeedMultiplier);
+              isMoving = true;
+              movingLeft = true;
+              this.lastHorizontalDirection = 'left';
+          } else if (this.cursors.right.isDown) {
+              this.player.body.setVelocityX(160 * dashSpeedMultiplier);
+              isMoving = true;
+              movingRight = true;
+              this.lastHorizontalDirection = 'right';
+          } else {
+              this.player.body.setVelocityX(0);
+          }
+
+          if (this.cursors.up.isDown) {
+              this.player.body.setVelocityY(-160 * dashSpeedMultiplier);
+              isMoving = true;
+              movingVertical = true;
+
          } else if (this.cursors.down.isDown) {
              this.player.body.setVelocityY(160 * dashSpeedMultiplier);
              isMoving = true;
@@ -905,15 +987,17 @@ class MainScene extends Phaser.Scene {
              this.player.body.setVelocityY(0);
          }
 
-         // Handle X key for dash
-         if (Phaser.Input.Keyboard.JustDown(this.xKey)) {
-             // Check if enough time has passed since last dash (0.5 second cooldown)
-             if (this.time.now - this.lastDashTime >= 500) {
-                 // Start dash for 150ms
-                 this.dashEndTime = this.time.now + 150;
-                 this.lastDashTime = this.time.now;
-             }
-         }
+          // Handle X key for dash
+          if (Phaser.Input.Keyboard.JustDown(this.xKey)) {
+              // Check if enough time has passed since last dash (0.5 second cooldown)
+              if (this.time.now - this.lastDashTime >= 500) {
+                  // Start dash for 150ms
+                  this.dashEndTime = this.time.now + 150;
+                  this.lastDashTime = this.time.now;
+                  this.startDashEffect();
+              }
+          }
+
 
           // Handle space bar for sword swing
         if (Phaser.Input.Keyboard.JustDown(this.spaceBar) && this.time.now - this.lastAttackTime >= 700 && this.isGameStarted) {
@@ -969,40 +1053,48 @@ class MainScene extends Phaser.Scene {
          this.enemies.children.entries.forEach(enemy => {
              if (enemy.destroyed) return;
 
-             // Update enemy movement
-             if (!enemy.isDead) {
-                 if (enemy.isMoving) {
-                     enemy.body.setVelocity(enemy.direction.x * 160, enemy.direction.y * 160);
-                 } else {
-                     enemy.body.setVelocity(0, 0);
-                 }
+              // Update enemy movement
+              if (!enemy.isDead) {
+                  if (enemy.isMoving) {
+                      const speed = enemy.huntSpeed || 160; // Use werewolf hunt speed if available, default to 160
+                      enemy.body.setVelocity(enemy.direction.x * speed, enemy.direction.y * speed);
+                  } else {
+                      enemy.body.setVelocity(0, 0);
+                  }
+              }
+
+             // Update enemy animations and direction
+             let enemyShouldFaceLeft = false;
+
+             // Update horizontal direction based on movement
+             if (enemy.direction.x > 0) {
+                 // Moving right
+                 enemyShouldFaceLeft = false;
+                 enemy.lastHorizontalDirection = 'right';
+             } else if (enemy.direction.x < 0) {
+                 // Moving left
+                 enemyShouldFaceLeft = true;
+                 enemy.lastHorizontalDirection = 'left';
+             } else if (enemy.direction.y !== 0) {
+                 // Moving vertically only, use last horizontal direction
+                 enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
+             } else {
+                 // Not moving, use last horizontal direction
+                 enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
              }
 
-            // Update enemy animations and direction
-            let enemyShouldFaceLeft = false;
 
-            // Update horizontal direction based on movement
-            if (enemy.direction.x > 0) {
-                // Moving right
-                enemyShouldFaceLeft = false;
-                enemy.lastHorizontalDirection = 'right';
-            } else if (enemy.direction.x < 0) {
-                // Moving left
-                enemyShouldFaceLeft = true;
-                enemy.lastHorizontalDirection = 'left';
-            } else if (enemy.direction.y !== 0) {
-                // Moving vertically only, use last horizontal direction
-                enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
-            } else {
-                // Not moving, use last horizontal direction
-                enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
-            }
+             // Apply flip based on direction
+             enemy.setFlipX(enemyShouldFaceLeft);
 
-            // Apply flip based on direction
-            enemy.setFlipX(enemyShouldFaceLeft);
+                // Handle werewolf-specific movement logic
+                if (enemy.type === enemyTypes.WEREWOLF && !enemy.isDead && !enemy.isAxeSwinging) {
+                    this.updateWerewolfMovement(enemy);
+                }
 
-               // Play animations
-               if (!enemy.isDead && !enemy.isAxeSwinging) {
+                // Play animations
+                if (!enemy.isDead && !enemy.isAxeSwinging) {
+
                    // Check if player is nearby (within 100 pixels) - but only for non-wizard enemies
                    const distanceToPlayer = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y);
 
@@ -1100,45 +1192,221 @@ class MainScene extends Phaser.Scene {
          });
      }
 
-    createBloodParticles(x, y, entityType) {
-        let bloodColor;
-        switch (entityType) {
-            case entityTypes.PLAYER:
-                bloodColor = 0xff0000;
-                break;
-            case entityTypes.ENEMY:
-                bloodColor = 0x330000;
-                break;
-            default:
-                bloodColor = 0xff0000;
-        }
+     createBloodParticles(x, y, entityType) {
+         let bloodColor;
+         switch (entityType) {
+             case entityTypes.PLAYER:
+                 bloodColor = 0xff0000;
+                 break;
+             case entityTypes.ENEMY:
+                 bloodColor = 0x330000;
+                 break;
+             default:
+                 bloodColor = 0xff0000;
+         }
 
-        const particleCount = Phaser.Math.Between(8, 12);
-        for (let i = 0; i < particleCount; i++) {
-            const particle = this.add.circle(x, y, 2, bloodColor, 1);
-            particle.setDepth(15);
-            
-            const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-            const speed = Phaser.Math.Between(50, 125);
-            const targetX = x + Math.cos(angle) * speed * 0.5;
-            const targetY = y + Math.sin(angle) * speed * 0.5;
-            
-            this.tweens.add({
-                targets: particle,
-                x: targetX,
-                y: targetY,
-                alpha: 0,
-                radius: Phaser.Math.Between(4, 8),
-                duration: 500,
-                ease: 'Quad.out',
-                onComplete: () => {
-                    particle.destroy();
-                }
-            });
-        }
-    }
+         const particleCount = Phaser.Math.Between(8, 12);
+         for (let i = 0; i < particleCount; i++) {
+             const particle = this.add.circle(x, y, 2, bloodColor, 1);
+             particle.setDepth(15);
+             
+             const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+             const speed = Phaser.Math.Between(50, 125);
+             const targetX = x + Math.cos(angle) * speed * 0.5;
+             const targetY = y + Math.sin(angle) * speed * 0.5;
+             
+             this.tweens.add({
+                 targets: particle,
+                 x: targetX,
+                 y: targetY,
+                 alpha: 0,
+                 radius: Phaser.Math.Between(4, 8),
+                 duration: 500,
+                 ease: 'Quad.out',
+                 onComplete: () => {
+                     particle.destroy();
+                  }
+              });
+          }
+      }
 
-    scheduleEnemyBehaviorChange(enemy) {
+       startDashEffect() {
+           // Calculate dash angle from current velocity
+           const velocityX = this.player.body.velocity.x;
+           const velocityY = this.player.body.velocity.y;
+           
+           // If moving, calculate angle from velocity; otherwise use last horizontal direction
+           let dashAngle;
+           if (Math.abs(velocityX) > 0 || Math.abs(velocityY) > 0) {
+               dashAngle = Math.atan2(velocityY, velocityX);
+           } else {
+               // Fallback to last horizontal direction
+               dashAngle = this.lastHorizontalDirection === 'left' ? Math.PI : 0;
+           }
+
+           // Store dash direction for particle emission
+           this.lastDashDirection = dashAngle;
+
+           // Apply white tint flash (50ms)
+           this.player.setTint(0xffffff);
+           this.tweens.add({
+               targets: this.player,
+               delay: 50,
+               onComplete: () => {
+                   this.player.clearTint();
+               }
+           });
+
+           // Initialize particle emission tracking
+           this.lastDashParticleTime = this.time.now;
+       }
+
+
+      endDashEffect() {
+          // Clear any lingering tint
+          this.player.clearTint();
+          
+          // Stop particle emission
+          this.lastDashParticleTime = 0;
+      }
+
+     createFireballParticles(x, y) {
+         const orangeColor = 0xff9500;
+         const particleCount = Phaser.Math.Between(8, 12);
+         
+         for (let i = 0; i < particleCount; i++) {
+             const particle = this.add.circle(x, y, 2, orangeColor, 1);
+             particle.setDepth(15);
+             
+             const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+             const speed = Phaser.Math.Between(50, 125);
+             const targetX = x + Math.cos(angle) * speed * 0.5;
+             const targetY = y + Math.sin(angle) * speed * 0.5;
+             
+             this.tweens.add({
+                 targets: particle,
+                 x: targetX,
+                 y: targetY,
+                 alpha: 0,
+                 radius: Phaser.Math.Between(4, 8),
+                 duration: 500,
+                 ease: 'Quad.out',
+                 onComplete: () => {
+                     particle.destroy();
+                 }
+             });
+          }
+      }
+
+      createDashSpeedLines(playerX, playerY, dashAngle) {
+          // Create 4-6 thin white lines radiating from player during dash
+          const lineCount = 5;
+          const lineLength = 50;
+          const lineWidth = 1;
+          const whiteColor = 0xffffff;
+
+          for (let i = 0; i < lineCount; i++) {
+              // Alternate between horizontal and vertical lines for star pattern
+              const isHorizontal = i % 2 === 0;
+              let line;
+
+              if (isHorizontal) {
+                  // Horizontal line
+                  line = this.add.line(playerX, playerY, -lineLength, 0, lineLength, 0, whiteColor, 1);
+              } else {
+                  // Vertical line
+                  line = this.add.line(playerX, playerY, 0, -lineLength, 0, lineLength, whiteColor, 1);
+              }
+
+              line.setDepth(5);
+              line.setLineWidth(lineWidth);
+              line.setOrigin(0.5, 0.5);
+
+              // Rotate line based on dash angle for visual flow
+              const angleOffset = (i / lineCount) * Math.PI;
+              line.rotation = dashAngle + angleOffset;
+
+              // Fade out over 150ms (matching dash duration)
+              this.tweens.add({
+                  targets: line,
+                  alpha: 0,
+                  duration: 150,
+                  ease: 'Quad.out',
+                  onComplete: () => {
+                      line.destroy();
+                  }
+              });
+          }
+      }
+
+      emitDashParticles(playerX, playerY, dashAngle) {
+          // Emit 2-3 white particles backward from dash direction (opposite to velocity)
+          const particleCount = Phaser.Math.Between(2, 3);
+          const whiteColor = 0xffffff;
+          const backwardAngle = dashAngle + Math.PI; // Opposite direction
+
+          for (let i = 0; i < particleCount; i++) {
+              const particle = this.add.circle(playerX, playerY, 2, whiteColor, 1);
+              particle.setDepth(4); // Below player but above most other elements
+
+              // Add slight randomness to spread particles
+              const angleVariation = Phaser.Math.FloatBetween(-Math.PI / 6, Math.PI / 6);
+              const emitAngle = backwardAngle + angleVariation;
+              const speed = Phaser.Math.Between(60, 100);
+
+              // Calculate target position (particles move backward)
+              const distance = speed * 0.3;
+              const targetX = playerX + Math.cos(emitAngle) * distance;
+              const targetY = playerY + Math.sin(emitAngle) * distance;
+
+              // Animate particles: move and fade out over 300ms
+              this.tweens.add({
+                  targets: particle,
+                  x: targetX,
+                  y: targetY,
+                  alpha: 0,
+                  duration: 300,
+                  ease: 'Quad.out',
+                  onComplete: () => {
+                      particle.destroy();
+                  }
+              });
+          }
+      }
+
+      updateWerewolfMovement(werewolf) {
+          // Calculate distance to player
+          const distanceToPlayer = Phaser.Math.Distance.Between(
+              werewolf.x, werewolf.y,
+              this.player.x, this.player.y
+          );
+
+          // Check if player is within detection range
+          const playerDetected = distanceToPlayer < this.WEREWOLF_DETECTION_RANGE;
+
+          if (playerDetected) {
+              werewolf.hasDetectedPlayer = true;
+          }
+
+          if (werewolf.hasDetectedPlayer) {
+              // HUNT MODE: Always move toward player relentlessly
+              const angle = Math.atan2(
+                  this.player.y - werewolf.y,
+                  this.player.x - werewolf.x
+              );
+              werewolf.direction.x = Math.cos(angle);
+              werewolf.direction.y = Math.sin(angle);
+              werewolf.isMoving = true;
+              werewolf.huntSpeed = this.WEREWOLF_HUNT_SPEED; // Faster when hunting
+          } else {
+              // PATROL MODE: Use normal random patrol behavior (like orcs)
+              // This is handled by the existing scheduleEnemyBehaviorChange() method
+              werewolf.huntSpeed = this.WEREWOLF_PATROL_SPEED; // Normal speed while patrolling
+          }
+      }
+
+      scheduleEnemyBehaviorChange(enemy) {
+
           // Don't change behavior if enemy is swinging axe or dead
           if (!enemy.isAxeSwinging && !enemy.isDead) {
               // Toggle between moving and stationary
