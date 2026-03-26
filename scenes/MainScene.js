@@ -859,11 +859,14 @@ class MainScene extends Phaser.Scene {
          this.scheduleEnemyBehaviorChange(enemy);
 
          // If this is a wizard, schedule fireball attacks
-         if (type === enemyTypes.WIZARD) {
-             this.scheduleWizardAttack(enemy);
-         }
+          if (type === enemyTypes.WIZARD) {
+              enemy.lastAlignedAttackTime = 0;  // Track cooldown for direct attacks
+              enemy.alignmentCheckTime = 0;    // Track last alignment check time
+              this.scheduleWizardAttack(enemy);
+          }
 
-    }
+     }
+
 
      spawnFireball(wizard) {
        
@@ -897,9 +900,58 @@ class MainScene extends Phaser.Scene {
             }
         });
         
-    }
+     }
 
-    scheduleWizardAttack(wizard) {
+     checkAndExecuteAlignedAttack(wizard) {
+         if (wizard.isDead) return;
+         
+         // Check horizontal alignment with moderate tolerance (±50px)
+         const yDifference = Math.abs(wizard.y - this.player.y);
+         const HORIZONTAL_TOLERANCE = 50; // pixels
+         
+         if (yDifference < HORIZONTAL_TOLERANCE) {
+             // Player is horizontally aligned!
+             
+             // Check if enough time has passed since last aligned attack (500ms cooldown)
+             if (this.time.now - wizard.lastAlignedAttackTime >= 500) {
+                 // Make wizard face toward player
+                 const playerIsToTheLeft = this.player.x < wizard.x;
+                 wizard.flipX = playerIsToTheLeft;
+                 
+                 // Cancel current scheduled attack timer to interrupt pattern
+                 if (wizard.attackTimer) {
+                     wizard.attackTimer.remove();
+                     wizard.attackTimer = null;
+                 }
+                 
+                 // Trigger immediate attack
+                 if (!wizard.isAttacking) {
+                     wizard.isAttacking = true;
+                     wizard.facingLocked = true; // Lock facing direction during attack
+                     wizard.play('wizard_attack');
+                     wizard.lastAlignedAttackTime = this.time.now; // Set cooldown
+                     
+                     // Spawn fireball at 80% through animation (960ms)
+                     this.time.delayedCall(960, () => {
+                         if (!wizard.destroyed && !wizard.isDead) {
+                             this.spawnFireball(wizard);
+                         }
+                     });
+                     
+                     // Clear attacking flag when animation completes
+                     wizard.once('animationcomplete-wizard_attack', () => {
+                         wizard.isAttacking = false;
+                         wizard.facingLocked = false; // Unlock facing direction after attack
+                         // Reschedule random attacks after aligned attack completes
+                         this.scheduleWizardAttack(wizard);
+                     });
+                 }
+             }
+         }
+     }
+
+     scheduleWizardAttack(wizard) {
+
       
         // Only schedule attacks if wizard is not dead
         if (!wizard.isDead) {
@@ -1063,37 +1115,50 @@ class MainScene extends Phaser.Scene {
                   }
               }
 
-             // Update enemy animations and direction
-             let enemyShouldFaceLeft = false;
+              // Update enemy animations and direction
+              let enemyShouldFaceLeft = false;
 
-             // Update horizontal direction based on movement
-             if (enemy.direction.x > 0) {
-                 // Moving right
-                 enemyShouldFaceLeft = false;
-                 enemy.lastHorizontalDirection = 'right';
-             } else if (enemy.direction.x < 0) {
-                 // Moving left
-                 enemyShouldFaceLeft = true;
-                 enemy.lastHorizontalDirection = 'left';
-             } else if (enemy.direction.y !== 0) {
-                 // Moving vertically only, use last horizontal direction
-                 enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
-             } else {
-                 // Not moving, use last horizontal direction
-                 enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
-             }
+              // Update horizontal direction based on movement
+              if (enemy.direction.x > 0) {
+                  // Moving right
+                  enemyShouldFaceLeft = false;
+                  enemy.lastHorizontalDirection = 'right';
+              } else if (enemy.direction.x < 0) {
+                  // Moving left
+                  enemyShouldFaceLeft = true;
+                  enemy.lastHorizontalDirection = 'left';
+              } else if (enemy.direction.y !== 0) {
+                  // Moving vertically only, use last horizontal direction
+                  enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
+              } else {
+                  // Not moving, use last horizontal direction
+                  enemyShouldFaceLeft = enemy.lastHorizontalDirection === 'left';
+               }
 
 
-             // Apply flip based on direction
-             enemy.setFlipX(enemyShouldFaceLeft);
-
-                // Handle werewolf-specific movement logic
-                if (enemy.type === enemyTypes.WEREWOLF && !enemy.isDead && !enemy.isAxeSwinging) {
-                    this.updateWerewolfMovement(enemy);
+                // Apply flip based on direction (unless facing is locked during attack animation)
+                if (!enemy.facingLocked) {
+                    enemy.setFlipX(enemyShouldFaceLeft);
                 }
 
-                // Play animations
-                if (!enemy.isDead && !enemy.isAxeSwinging) {
+                   // Handle werewolf-specific movement logic
+                   if (enemy.type === enemyTypes.WEREWOLF && !enemy.isDead && !enemy.isAxeSwinging) {
+                       this.updateWerewolfMovement(enemy);
+                   }
+
+                   // Handle wizard-specific alignment attacks (every 200ms for balanced frequency)
+                   if (enemy.type === enemyTypes.WIZARD && !enemy.isDead) {
+                       if (this.time.now - enemy.alignmentCheckTime >= 200) {
+                           this.checkAndExecuteAlignedAttack(enemy);
+                           enemy.alignmentCheckTime = this.time.now;
+                       }
+                   }
+
+
+
+                 // Play animations
+                 if (!enemy.isDead && !enemy.isAxeSwinging) {
+
 
                    // Check if player is nearby (within 100 pixels) - but only for non-wizard enemies
                    const distanceToPlayer = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y);
@@ -1602,7 +1667,7 @@ class MainScene extends Phaser.Scene {
         // Fade screen to black over 2 seconds
         this.tweens.add({
             targets: this.blackOverlay,
-            alpha: 0.75,
+            alpha: 0.5,
             duration: 2000,
             ease: 'Linear',
             onComplete: () => {
