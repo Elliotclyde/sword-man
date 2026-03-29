@@ -8,7 +8,8 @@ const entityTypes = {
 const enemyTypes = {
     ORC: "ORC",
     WIZARD: "WIZARD",
-    WEREWOLF: "WEREWOLF"
+    WEREWOLF: "WEREWOLF",
+    ARMOREDORC: "ARMOREDORC"
 };
 
 // Enemy configuration: sprite asset, frame dimensions, and attack animation
@@ -17,20 +18,34 @@ const enemyConfigs = {
         assetKey: 'orc',
         frameWidth: 100,
         frameHeight: 100,
-        attackAnimKey: 'orc_attack'
+        attackAnimKey: 'orc_attack',
+        canDamageOnTouch: true,
+        health: 1
     },
     [enemyTypes.WIZARD]: {
         assetKey: 'wizard',
         frameWidth: 100,
         frameHeight: 100,
-        attackAnimKey: 'wizard_attack'
+        attackAnimKey: 'wizard_attack',
+        canDamageOnTouch: false,
+        health: 1
     },
     [enemyTypes.WEREWOLF]: {
         assetKey: 'werewolf',
         frameWidth: 100,
         frameHeight: 100,
-        attackAnimKey: 'werewolf_attack'
-    }
+        attackAnimKey: 'werewolf_attack',
+        canDamageOnTouch: true,
+        health: 1
+    },
+     [enemyTypes.ARMOREDORC]: {
+         assetKey: 'armoredorc',
+         frameWidth: 100,
+         frameHeight: 100,
+         attackAnimKey: 'armoredorc_attack',
+         canDamageOnTouch: true,
+         health: 3
+     }
 };
 
 class MainScene extends Phaser.Scene {
@@ -42,7 +57,7 @@ class MainScene extends Phaser.Scene {
               { 
                   level: 1, 
                   enemies: [
-                      { type: enemyTypes.ORC, count: 1 }
+                      { type: enemyTypes.ORC, count: 1 },
                   ], 
                   playerStartX: 100, 
                   playerStartY: 100 
@@ -64,11 +79,28 @@ class MainScene extends Phaser.Scene {
                  playerStartX: 100, 
                  playerStartY: 100 
              },
+             { 
+                 level: 4, 
+                 enemies: [
+                     { type: enemyTypes.ARMOREDORC, count: 2 },
+                 ], 
+                 playerStartX: 600, 
+                 playerStartY: 100 
+             },
              {
-                 level: 4,
+                 level: 5,
                  enemies: [
                      { type: enemyTypes.ORC, count: 5 },
                      { type: enemyTypes.WEREWOLF, count: 2 }
+                 ],
+                 playerStartX: 100,
+                 playerStartY: 100
+             },
+             {
+                 level: 6,
+                 enemies: [
+                     { type: enemyTypes.ARMOREDORC, count: 5 },
+                     { type: enemyTypes.WIZARD, count: 2 }
                  ],
                  playerStartX: 100,
                  playerStartY: 100
@@ -105,16 +137,21 @@ class MainScene extends Phaser.Scene {
             frameHeight: 100
         });
 
-        this.load.spritesheet('werewolf', 'assets/Werewolf.png', {
-            frameWidth: 100,
-            frameHeight: 100
-        });
+         this.load.spritesheet('werewolf', 'assets/Werewolf.png', {
+             frameWidth: 100,
+             frameHeight: 100
+         });
 
-        // Dungeon.png is 160x160 with 16x16 tiles in a 10x10 grid
-        this.load.spritesheet('dungeon', 'assets/Dungeon.png', {
-            frameWidth: 16,
-            frameHeight: 16
-           });
+         this.load.spritesheet('armoredorc', 'assets/ArmoredOrc.png', {
+             frameWidth: 100,
+             frameHeight: 100
+         });
+
+         // Dungeon.png is 160x160 with 16x16 tiles in a 10x10 grid
+         this.load.spritesheet('dungeon', 'assets/Dungeon.png', {
+             frameWidth: 16,
+             frameHeight: 16
+            });
        }
 
     // Idempotent initialization method that properly resets all game state
@@ -708,27 +745,55 @@ class MainScene extends Phaser.Scene {
              frames: this.anims.generateFrameNumbers('werewolf', { start: 26, end: 34 }),
              frameRate: 10,
              repeat: 0
-         });
+          });
 
-         this.anims.create({
-             key: 'werewolf_die',
-             frames: this.anims.generateFrameNumbers('werewolf', { start: 65, end: 69 }),
-             frameRate: 10,
+          this.anims.create({
+              key: 'werewolf_die',
+              frames: this.anims.generateFrameNumbers('werewolf', { start: 65, end: 69 }),
+              frameRate: 10,
+              repeat: 0
+          });
+
+          this.anims.create({
+              key: 'armoredorc_stand',
+              frames: this.anims.generateFrameNumbers('armoredorc', { start: 0, end: 5 }),
+              frameRate: 10,
+              repeat: -1
+          });
+
+          this.anims.create({
+              key: 'armoredorc_walk',
+              frames: this.anims.generateFrameNumbers('armoredorc', { start: 9, end: 16 }),
+              frameRate: 10,
+              repeat: -1
+          });
+
+          this.anims.create({
+              key: 'armoredorc_attack',
+              frames: this.anims.generateFrameNumbers('armoredorc', { start: 18, end: 24 }),
+              frameRate: 10,
+              repeat: 0
+          });
+
+          this.anims.create({
+              key: 'armoredorc_die',
+              frames: this.anims.generateFrameNumbers('armoredorc', { start: 63, end: 66 }),
+              frameRate: 10,
+              repeat: 0
+          });
+
+          this.anims.create({
+              key: 'player_die',
+              frames: [
+
+                 { key: 'soldier', frame: 54 },
+                 { key: 'soldier', frame: 55 },
+                 { key: 'soldier', frame: 56 },
+                 { key: 'soldier', frame: 57 }
+             ],
+             frameRate: 2,
              repeat: 0
          });
-
-         this.anims.create({
-             key: 'player_die',
-             frames: [
-
-                { key: 'soldier', frame: 54 },
-                { key: 'soldier', frame: 55 },
-                { key: 'soldier', frame: 56 },
-                { key: 'soldier', frame: 57 }
-            ],
-            frameRate: 2,
-            repeat: 0
-        });
 
          // Create a sprite from the soldier spritesheet
          // Use frame 0 (the first 100x100px from top-left)
@@ -820,31 +885,33 @@ class MainScene extends Phaser.Scene {
             );
         } while (distanceFromPlayer < MIN_SPAWN_DISTANCE);
 
-        // Get configuration for this enemy type
-        const config = enemyConfigs[type];
-        const enemy = this.add.sprite(randomX, randomY, config.assetKey, 0);
-        enemy.setScale(3);
-        enemy.setDepth(5); // Enemies render on top of player by default
-        enemy.setRotation(0); // Ensure rotation is reset to normal
-        enemy.type = type; // Store the enemy type for later reference
+         // Get configuration for this enemy type
+         const config = enemyConfigs[type];
+         const enemy = this.add.sprite(randomX, randomY, config.assetKey, 0);
+         enemy.setScale(3);
+         enemy.setDepth(5); // Enemies render on top of player by default
+         enemy.setRotation(0); // Ensure rotation is reset to normal
+         enemy.type = type; // Store the enemy type for later reference
 
-        // Play the appropriate stand animation based on enemy type
-        enemy.play(`${type.toLowerCase()}_stand`);
+         // Play the appropriate stand animation based on enemy type
+         enemy.play(`${type.toLowerCase()}_stand`);
 
-         this.physics.add.existing(enemy);
-         enemy.body.setCollideWorldBounds(false);
-         enemy.body.setSize(20.4, 19.95, true);
-         enemy.body.setOffset(40, 38);
+          this.physics.add.existing(enemy);
+          enemy.body.setCollideWorldBounds(false);
+          enemy.body.setSize(20.4, 19.95, true);
+          enemy.body.setOffset(40, 38);
 
-        // Initialize enemy-specific properties
-          enemy.isMoving = false;
-          enemy.direction = { x: 0, y: 0 };
-          enemy.lastEdgeHitTime = 0;
-          enemy.lastHorizontalDirection = 'right';
-          enemy.isDead = false;
-          enemy.isAxeSwinging = false; // Track if enemy is currently attacking
-          enemy.hasRecentlyAttacked = false;
-          enemy.isAttacking = false; // Track if wizard is currently attacking
+         // Initialize enemy-specific properties
+           enemy.isMoving = false;
+           enemy.direction = { x: 0, y: 0 };
+           enemy.lastEdgeHitTime = 0;
+           enemy.lastHorizontalDirection = 'right';
+           enemy.isDead = false;
+           enemy.isAxeSwinging = false; // Track if enemy is currently attacking
+            enemy.hasRecentlyAttacked = false;
+            enemy.isAttacking = false; // Track if wizard is currently attacking
+            enemy.health = config.health; // Initialize health from config
+            enemy.lastHitTime = 0; // Track when enemy was last hit by player
           
           // Werewolf-specific properties
           if (type === enemyTypes.WEREWOLF) {
@@ -1510,63 +1577,88 @@ class MainScene extends Phaser.Scene {
            return;
          }
 
-           const enemyIsToTheLeft = enemy.x < player.x;
-           // Only trigger if player is currently swinging sword and enemy is not already dead
-           if (this.isPlayerSwinging && !enemy.isDead) {
-               // Check if enemy is on the correct side based on player's facing direction
-               const playerFacingLeft = player.flipX;
+            const enemyIsToTheLeft = enemy.x < player.x;
+            // Only trigger if player is currently swinging sword and enemy is not already dead
+            if (this.isPlayerSwinging && !enemy.isDead) {
+                // Check if enemy was recently hit (within sword animation duration of 600ms)
+                if (enemy.lastHitTime && this.time.now - enemy.lastHitTime < 600) {
+                    // Enemy was already hit during this swing, don't hit again
+                    return;
+                }
 
-               // If player is facing left, only hit enemies to the left
-               // If player is facing right, only hit enemies to the right
-               if ((playerFacingLeft && !enemyIsToTheLeft) || (!playerFacingLeft && enemyIsToTheLeft)) {
-                   // Enemy is on the wrong side, don't hit it
-                   return;
-               }
+                // Check if enemy is on the correct side based on player's facing direction
+                const playerFacingLeft = player.flipX;
 
-                console.log('Enemy not dead, triggering death sequence');
-         // Create blood particles
-         this.createBloodParticles(enemy.x, enemy.y, entityTypes.ENEMY);
+                // If player is facing left, only hit enemies to the left
+                // If player is facing right, only hit enemies to the right
+                 if ((playerFacingLeft && !enemyIsToTheLeft) || (!playerFacingLeft && enemyIsToTheLeft)) {
+                     // Enemy is on the wrong side, don't hit it
+                     return;
+                 }
 
-         // Mark enemy as dead
-         enemy.isDead = true;
+                 // Mark that enemy was just hit
+                 enemy.lastHitTime = this.time.now;
 
-         // Lower enemy's depth so it renders under the player after death
-         enemy.setDepth(-1);
+                 // Create blood particles
+                 this.createBloodParticles(enemy.x, enemy.y, entityTypes.ENEMY);
 
-         // Stop enemy movement
-         enemy.body.setVelocity(0, 0);
+                  // Reduce enemy health by 1
+                  enemy.health -= 1;
 
-         // Play death animation
-         const typePrefix = enemy.type.toLowerCase();
-         enemy.play(`${typePrefix}_die`);
+                  // Check if enemy is dead
+                  if (enemy.health <= 0) {
+                     // Mark enemy as dead
+                     enemy.isDead = true;
 
-                 // After death animation completes, start fade out
-                 enemy.once(`animationcomplete-${typePrefix}_die`, () => {
-                     // Stop animation so the last frame stays visible
-                     enemy.stop();
+                     // Lower enemy's depth so it renders under the player after death
+                     enemy.setDepth(-1);
 
-                     // Create a tween to fade out over 2 seconds
-                     enemy.fadeTween = this.tweens.add({
-                         targets: enemy,
-                         alpha: 0,
-                         duration: 2000,
-                         ease: 'Linear',
-                         onComplete: () => {
-                             // Clean up the tween reference
-                            if (enemy.fadeTween) {
-                                enemy.fadeTween = null;
-                            }
-                            enemy.destroy();
-                            // Check if all enemies are defeated
-                            this.checkWinCondition();
-                        }
-                    });
-                });
-           }
-          else{
-            // Only cause damage if enemy is not dead and not already swinging axe
-            // Also skip damage for wizards
-            if (!enemy.isDead && !enemy.hasRecentlyAttacked && enemy.type !== enemyTypes.WIZARD) {
+                     // Stop enemy movement
+                     enemy.body.setVelocity(0, 0);
+
+                     // Play death animation
+                     const typePrefix = enemy.type.toLowerCase();
+                     enemy.play(`${typePrefix}_die`);
+
+                     // After death animation completes, start fade out
+                     enemy.once(`animationcomplete-${typePrefix}_die`, () => {
+                         // Stop animation so the last frame stays visible
+                         enemy.stop();
+
+                         // Create a tween to fade out over 2 seconds
+                         enemy.fadeTween = this.tweens.add({
+                             targets: enemy,
+                             alpha: 0,
+                             duration: 2000,
+                             ease: 'Linear',
+                             onComplete: () => {
+                                 // Clean up the tween reference
+                                if (enemy.fadeTween) {
+                                    enemy.fadeTween = null;
+                                }
+                                enemy.destroy();
+                                // Check if all enemies are defeated
+                                 this.checkWinCondition();
+                             }
+                          });
+                      });
+                  } else {
+                      // Enemy survived the hit - add damage feedback (red tint)
+                     enemy.setTint(0xff0000);
+                     enemy.alpha = 0.7;
+                     this.time.delayedCall(100, () => {
+                         if (enemy && !enemy.destroyed) {
+                             enemy.clearTint();
+                             enemy.alpha = 1;
+                         }
+                     });
+                  }
+            }
+            else{
+             // Only cause damage if enemy is not dead and not already swinging axe
+             // Also skip damage for enemies that don't damage on touch (based on enemyConfig)
+             const enemyConfig = enemyConfigs[enemy.type];
+             if (!enemy.isDead && !enemy.hasRecentlyAttacked && enemyConfig.canDamageOnTouch) {
                 // Check if player is currently invulnerable to damage
                 if (this.playerLastHitTime && this.time.now - this.playerLastHitTime < 1000) {
                     // Player is invulnerable, don't take damage
