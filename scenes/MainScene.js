@@ -142,16 +142,22 @@ class MainScene extends Phaser.Scene {
              frameHeight: 100
          });
 
-         this.load.spritesheet('armoredorc', 'assets/ArmoredOrc.png', {
-             frameWidth: 100,
-             frameHeight: 100
-         });
+          this.load.spritesheet('armoredorc', 'assets/ArmoredOrc.png', {
+              frameWidth: 100,
+              frameHeight: 100
+          });
 
-         // Dungeon.png is 160x160 with 16x16 tiles in a 10x10 grid
-         this.load.spritesheet('dungeon', 'assets/Dungeon.png', {
-             frameWidth: 16,
-             frameHeight: 16
-            });
+          // Dungeon.png is 160x160 with 16x16 tiles in a 10x10 grid
+          this.load.spritesheet('dungeon', 'assets/Dungeon.png', {
+              frameWidth: 16,
+              frameHeight: 16
+          });
+
+          // HealthBars.png contains health bar sprites, 48x20 pixels each
+          this.load.spritesheet('healthbars', 'assets/HealthBars.png', {
+              frameWidth: 48,
+              frameHeight: 16
+          });
        }
 
     // Idempotent initialization method that properly resets all game state
@@ -214,10 +220,16 @@ class MainScene extends Phaser.Scene {
             this.xKey.reset();
         }
 
-         // Remove existing health text if it exists
-         if (this.healthText) {
-             this.healthText.destroy();
-             this.healthText = null;
+         // Remove existing health bar if it exists
+         if (this.healthBar) {
+             this.healthBar.destroy();
+             this.healthBar = null;
+         }
+
+         // Remove existing health value bar if it exists
+         if (this.healthValueBar) {
+             this.healthValueBar.destroy();
+             this.healthValueBar = null;
          }
 
          // Remove existing level text if it exists
@@ -320,19 +332,25 @@ class MainScene extends Phaser.Scene {
           }
           this.playerFireballCollider = this.physics.add.overlap(this.player, this.fireballs, this.handleFireballHit, null, this);
 
-   this.player.health = 3;
+    // Create health bar sprite display (health value - underneath)
+    this.healthValueBar = this.add.sprite(750, 550, 'healthbars', 1);
+    this.healthValueBar.setScale(3); // Scale to 3x size
+    this.healthValueBar.setOrigin(1, 1); // Align to bottom right
+    this.healthValueBar.setScrollFactor(0); // Keep fixed on screen
+    this.healthValueBar.setDepth(10); // Render above player and enemies
+    this.healthValueBar.setAlpha(0.7); // Make slightly transparent
 
-    // Create health display text
-     this.healthText = this.add.text(750, 550, `Health: ${this.player.health}`, {
-        fontSize: '32px',
-        fill: '#ffffff',
-        stroke: '#000000',
-        strokeThickness: 4
-    });
-    this.healthText.setOrigin(1, 1); // Align to bottom right
-    this.healthText.setScrollFactor(0); // Keep fixed on screen
-    this.healthText.setDepth(10); // Render above player and enemies
-    this.healthText.setAlpha(0.7); // Make slightly transparent
+    // Frame mapping: 6 health -> frame 1, 5 health -> frame 2, ... 0 health -> frame 7
+    const healthFrame = Math.min(7, Math.max(1, 7 - this.player.health));
+    this.healthValueBar.setFrame(healthFrame);
+
+    // Create health bar border sprite display (border - on top)
+    this.healthBar = this.add.sprite(750, 550, 'healthbars', 0);
+    this.healthBar.setScale(3); // Scale to 3x size
+    this.healthBar.setOrigin(1, 1); // Align to bottom right
+    this.healthBar.setScrollFactor(0); // Keep fixed on screen
+    this.healthBar.setDepth(11); // Render on top of health value
+    this.healthBar.setAlpha(0.7); // Make slightly transparent
 
     // Create level text on bottom left
     this.levelText = this.add.text(50, 550, `Level: ${this.currentLevelIndex + 1}`, {
@@ -399,12 +417,17 @@ class MainScene extends Phaser.Scene {
         // Reduce player health
         player.health -= 1;
 
-        // Update health display
-        if (this.healthText) {
-            this.healthText.setText('Health: ' + player.health);
-        }
+          // Update health bar display (only update the health value sprite)
+          if (this.healthValueBar) {
+              // Frame mapping: 6 health -> frame 1, 5 health -> frame 2, ... 0 health -> frame 7
+              const healthFrame = Math.min(7, Math.max(1, 7 - player.health));
+              this.healthValueBar.setFrame(healthFrame);
+          }
 
-        // Visual feedback - flash player red and set transparency
+          // Create blood particles at health bar
+          this.createHealthBarBloodParticles();
+
+         // Visual feedback - flash player red and set transparency
         player.setTint(0xff0000);
         player.alpha = 0.7; // Make player semi-transparent
 
@@ -488,7 +511,7 @@ class MainScene extends Phaser.Scene {
                 this.spaceKeyListener.destroy();
                 this.spaceKeyListener = null;
             }
-            this.player.health = 3;
+            this.player.health = 6;
             this.isGameStarted = false;
 
             // Use a delayed call to ensure the event handler completes before reinitializing
@@ -800,9 +823,7 @@ class MainScene extends Phaser.Scene {
          this.player = this.add.sprite(400, 300, 'soldier', 0);
          this.player.setScale(3);
          this.player.setDepth(0); // Player renders under orks
-
-         // Initialize player health
-         this.player.health = 3;
+         this.player.health = 6;
 
          this.physics.add.existing(this.player);
          this.player.body.setCollideWorldBounds(true);
@@ -1430,12 +1451,63 @@ class MainScene extends Phaser.Scene {
           }
       }
 
-      createDashSpeedLines(playerX, playerY, dashAngle) {
-          // Create 4-6 thin white lines radiating from player during dash
-          const lineCount = 5;
-          const lineLength = 50;
-          const lineWidth = 1;
-          const whiteColor = 0xffffff;
+       createHealthBarBloodParticles() {
+           const healthBarX = 680; // 70px to the left of original 750
+           const healthBarY = 500;
+           const healthBarWidth = 150;
+           const color = 0xd90f1e;
+           const count = 15;
+           
+           for (let i = 0; i < count; i++) {
+               const initialX = Phaser.Math.Between(healthBarX - healthBarWidth / 2,healthBarX + healthBarWidth / 2)
+               // Create particle at health bar
+               const particle = this.add.circle(initialX, healthBarY, 3, color, 1);
+               particle.setDepth(15);
+               particle.alpha = 0.7;
+               
+               // Random upward cone angle (45° to 135° = π/4 to 3π/4)
+               const angle = Phaser.Math.FloatBetween(Math.PI / 4, Math.PI * 3 / 4);
+               const speed = Phaser.Math.Between(80, 150);
+               
+               // Stage 1: Upward motion (250ms)
+               const midX = initialX + Math.cos(angle) * speed * 0.3;
+               const midY = healthBarY - Math.sin(angle) * speed * 0.3; // negative for upward
+               
+                // Stage 2: Fall motion (250ms)
+                const finalX = midX + Math.cos(angle) * speed * 0.4;
+                const finalY = midY + 150; // fall downward off-screen
+                const finalSize = Phaser.Math.Between(6, 10); // randomized final size
+               
+               // Stage 1: Rise upward
+               this.tweens.add({
+                   targets: particle,
+                   x: midX,
+                   y: midY,
+                   duration: 250,
+                   ease: 'Quad.out'
+               });
+               
+               // Stage 2: Fall and fade
+               this.tweens.add({
+                   targets: particle,
+                   x: finalX,
+                   y: finalY,
+                   alpha: 0,
+                   radius: finalSize,
+                   duration: 250,
+                   delay: 250,
+                   ease: 'Quad.out',
+                   onComplete: () => particle.destroy()
+               });
+           }
+       }
+
+       createDashSpeedLines(playerX, playerY, dashAngle) {
+           // Create 4-6 thin white lines radiating from player during dash
+           const lineCount = 5;
+           const lineLength = 50;
+           const lineWidth = 1;
+           const whiteColor = 0xffffff;
 
           for (let i = 0; i < lineCount; i++) {
               // Alternate between horizontal and vertical lines for star pattern
@@ -1683,13 +1755,23 @@ class MainScene extends Phaser.Scene {
          // Create blood particles
          this.createBloodParticles(player.x, player.y, entityTypes.PLAYER);
 
-         // Reduce player health
-         player.health -= 1;
+          // Reduce player health
+          player.health -= 1;
 
-                   // Update health display
-                   if (this.healthText) {
-                       this.healthText.setText('Health: ' + player.health);
-                   }
+            // Update health bar display (only update the health value sprite)
+            if (this.healthValueBar) {
+                // Frame mapping: 6 health -> frame 1, 5 health -> frame 2, ... 0 health -> frame 7
+                const healthFrame = Math.min(7, Math.max(1, 7 - player.health));
+                this.healthValueBar.setFrame(healthFrame);
+            }
+
+            // Create blood particles at health bar
+            this.createHealthBarBloodParticles();
+
+                     // Update health display
+                    if (this.healthText) {
+                        this.healthText.setText('Health: ' + player.health);
+                    }
 
                    // Visual feedback - flash player red and set transparency
                    player.setTint(0xff0000);
@@ -1828,7 +1910,7 @@ class MainScene extends Phaser.Scene {
                          this.blackOverlay.destroy();
                          this.blackOverlay = null;
                      }
-                     this.player.health = 3;
+    this.player.health = 6;
                      this.isGameStarted = false;
                      this.time.delayedCall(10, () => {
                          this.currentLevelIndex = 0;
