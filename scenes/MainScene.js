@@ -120,27 +120,35 @@ class MainScene extends Phaser.Scene {
             this.currentFilterFrequency = 1150;    // Initial frequency (midpoint between 300-2000)
             this.isFilterActive = false;
 
-            // Filter configuration constants for triangle wave
-            this.MIN_FILTER_FREQUENCY = 300;
-            this.MAX_FILTER_FREQUENCY = 2000;
-            this.FILTER_CYCLE_DURATION = 16000;   // 16 seconds for full triangle wave (8s up, 8s down)
-            this.FILTER_RESONANCE = 1.0;
-            this.filterWaveStartTime = 0;         // Track when the current wave cycle started
+             // Filter configuration constants for triangle wave
+             this.MIN_FILTER_FREQUENCY = 300;
+             this.MAX_FILTER_FREQUENCY = 2000;
+             this.FILTER_RESONANCE = 1.0;
+             this.filterWaveStartTime = 0;         // Track when the current wave cycle started
+             this.currentFilterCycleDuration = 0;  // Will be randomized on initialization
 
-            // Cathedral reverb properties for background music
-            this.convolverNode = null;            // Convolver for reverb effect
-            this.dryGainNode = null;              // Gain node for dry signal
-            this.wetGainNode = null;              // Gain node for wet/reverb signal
-            this.mixGainNode = null;              // Gain node to mix dry and wet signals
-            this.cathedralBuffer = null;          // Audio buffer for impulse response
-            this.currentDryWetBalance = 0.5;      // Current dry/wet balance (0 = fully dry, 1 = fully wet)
+             // Cycle duration randomization constants
+             this.MIN_CYCLE_DURATION = 10000;      // 10 seconds minimum
+             this.MAX_CYCLE_DURATION = 22000;      // 22 seconds maximum
 
-            // Reverb configuration constants for triangle wave
-            this.MIN_DRY_WET_BALANCE = 0.3;       // 30% wet minimum
-            this.MAX_DRY_WET_BALANCE = 0.8;       // 80% wet maximum
-            this.REVERB_CYCLE_DURATION = 16000;   // Same 16 second cycle as filter for synchronization
+             // Cathedral reverb properties for background music
+             this.convolverNode = null;            // Convolver for reverb effect
+             this.dryGainNode = null;              // Gain node for dry signal
+             this.wetGainNode = null;              // Gain node for wet/reverb signal
+             this.mixGainNode = null;              // Gain node to mix dry and wet signals
+             this.cathedralBuffer = null;          // Audio buffer for impulse response
+             this.currentDryWetBalance = 0.5;      // Current dry/wet balance (0 = fully dry, 1 = fully wet)
 
-        }
+              // Reverb configuration constants for triangle wave
+              this.MIN_DRY_WET_BALANCE = 0.3;       // 30% wet minimum
+              this.MAX_DRY_WET_BALANCE = 0.8;       // 80% wet maximum
+              this.currentReverbCycleDuration = 0;  // Will be randomized on initialization
+
+              // Master gain node for overall volume control to prevent clipping
+              this.masterGainNode = null;           // Master gain node
+              this.MASTER_GAIN_REDUCTION = 0.3;
+
+         }
 
     preload() {
         // Load assets here
@@ -235,116 +243,229 @@ class MainScene extends Phaser.Scene {
               this.wetGainNode = audioContext.createGain();
           }
 
-          // Create mix gain node if not already created
-          if (!this.mixGainNode) {
-              this.mixGainNode = audioContext.createGain();
-          }
-
-           // Connect the audio signal flow:
-           // backgroundMusic → filterNode → [dryGainNode ↘
-           //                                            mixGainNode → destination
-           //                              convolverNode ↗ (via wetGainNode)
-           if (this.backgroundMusic && this.backgroundMusic.source) {
-               try {
-                   this.backgroundMusic.source.disconnect();
-               } catch (e) {
-                   // Connection might not exist yet, that's fine
-               }
-               
-               // Connect source to filter
-               this.backgroundMusic.source.connect(this.filterNode);
-               console.log('Connected: backgroundMusic.source → filterNode');
-               
-               // Split signal into dry and wet paths
-               this.filterNode.connect(this.dryGainNode);
-               this.filterNode.connect(this.convolverNode);
-               console.log('Connected: filterNode → dryGainNode');
-               console.log('Connected: filterNode → convolverNode');
-               
-               // Connect wet path through convolver to wetGainNode
-               this.convolverNode.connect(this.wetGainNode);
-               console.log('Connected: convolverNode → wetGainNode');
-               
-               // Mix both dry and wet signals together
-               this.dryGainNode.connect(this.mixGainNode);
-               this.wetGainNode.connect(this.mixGainNode);
-               console.log('Connected: dryGainNode → mixGainNode');
-               console.log('Connected: wetGainNode → mixGainNode');
-               
-               // Output to destination
-               this.mixGainNode.connect(audioContext.destination);
-               console.log('Connected: mixGainNode → audioContext.destination');
-               
-               // Initialize gain values - start with balanced dry/wet
-               this.updateDryWetBalance();
+           // Create mix gain node if not already created
+           if (!this.mixGainNode) {
+               this.mixGainNode = audioContext.createGain();
            }
 
-          // Start the filter wave at current time
-          this.filterWaveStartTime = this.time.now;
-          this.isFilterActive = true;
-      }
+           // Create master gain node if not already created
+           if (!this.masterGainNode) {
+               this.masterGainNode = audioContext.createGain();
+               this.masterGainNode.gain.value = this.MASTER_GAIN_REDUCTION;
+           }
 
-      // Update the dry/wet balance gains based on currentDryWetBalance
+            // Connect the audio signal flow:
+            // backgroundMusic → filterNode → [dryGainNode ↘
+            //                                            mixGainNode → masterGainNode → destination
+            //                              convolverNode ↗ (via wetGainNode)
+            if (this.backgroundMusic && this.backgroundMusic.source) {
+                try {
+                    this.backgroundMusic.source.disconnect();
+                } catch (e) {
+                    // Connection might not exist yet, that's fine
+                }
+                
+                // Connect source to filter
+                this.backgroundMusic.source.connect(this.filterNode);
+                console.log('Connected: backgroundMusic.source → filterNode');
+                
+                // Split signal into dry and wet paths
+                this.filterNode.connect(this.dryGainNode);
+                this.filterNode.connect(this.convolverNode);
+                console.log('Connected: filterNode → dryGainNode');
+                console.log('Connected: filterNode → convolverNode');
+                
+                // Connect wet path through convolver to wetGainNode
+                this.convolverNode.connect(this.wetGainNode);
+                console.log('Connected: convolverNode → wetGainNode');
+                
+                // Mix both dry and wet signals together
+                this.dryGainNode.connect(this.mixGainNode);
+                this.wetGainNode.connect(this.mixGainNode);
+                console.log('Connected: dryGainNode → mixGainNode');
+                console.log('Connected: wetGainNode → mixGainNode');
+                
+                // Output through master gain to destination
+                this.mixGainNode.connect(this.masterGainNode);
+                this.masterGainNode.connect(audioContext.destination);
+                console.log('Connected: mixGainNode → masterGainNode → audioContext.destination');
+                
+                // Initialize gain values - start with balanced dry/wet
+                this.updateDryWetBalance();
+            }
+
+           // Start the filter wave at current time
+           this.filterWaveStartTime = this.time.now;
+           
+           // Generate independent random cycle durations for filter and reverb
+           this.currentFilterCycleDuration = this.generateRandomCycleDuration();
+           this.currentReverbCycleDuration = this.generateRandomCycleDuration();
+           
+            this.isFilterActive = true;
+       }
+
+       // Handle audio chain reinitialization when background music completes
+       // Manually loops the music while preserving Web Audio node chain
+       handleAudioLoopReset() {
+           if (!this.backgroundMusic) {
+               console.log('[Audio Loop] No background music found');
+               return;
+           }
+
+           console.log('[Audio Loop] Starting handleAudioLoopReset');
+
+           // Safely disconnect all existing nodes from the old source
+           try {
+               if (this.backgroundMusic.source) {
+                   console.log('[Audio Loop] Disconnecting old source');
+                   this.backgroundMusic.source.disconnect();
+               }
+           } catch (e) {
+               // Source may already be disconnected, that's fine
+               console.log('[Audio Loop] Old source already disconnected:', e.message);
+           }
+
+           // Restart the music - this creates a new internal source in Phaser
+           console.log('[Audio Loop] Calling play() to create new source');
+           this.backgroundMusic.play();
+
+           // Check if new source exists
+           if (!this.backgroundMusic.source) {
+               console.log('[Audio Loop] ERROR: No new source created after play()');
+               return;
+           }
+
+           const audioContext = this.sound.context;
+
+           try {
+               // CRITICAL: Immediately disconnect the new source before Phaser auto-connects it
+               // This prevents duplicate audio (filtered + unfiltered playing together)
+               console.log('[Audio Loop] Immediately disconnecting new source to prevent Phaser auto-connection');
+               this.backgroundMusic.source.disconnect();
+               
+               // Now reconnect the new source ONLY to our filter chain
+               console.log('[Audio Loop] Reconnecting new source to filter chain');
+               this.backgroundMusic.source.connect(this.filterNode);
+               
+               // Reapply current automation values to ensure smooth transition
+               this.filterNode.frequency.value = this.currentFilterFrequency;
+               this.updateDryWetBalance();
+               
+               console.log('[Audio Loop] Audio chain reconnected successfully. Current filter freq:', this.currentFilterFrequency, 'Dry/wet balance:', this.currentDryWetBalance);
+               
+               // Set up listener again for the next loop
+               this.backgroundMusic.once('complete', () => {
+                   this.handleAudioLoopReset();
+               });
+           } catch (e) {
+               console.error('[Audio Loop] Error reconnecting audio nodes on loop:', e);
+           }
+       }
+
       updateDryWetBalance() {
           if (!this.dryGainNode || !this.wetGainNode) {
               console.warn('Dry or wet gain node not initialized');
               return;
           }
 
+          // Clamp currentDryWetBalance to prevent edge cases that can cause division by zero
+          const clampedBalance = Math.max(0, Math.min(1, this.currentDryWetBalance));
+
           // currentDryWetBalance ranges from 0 (fully dry) to 1 (fully wet)
           // We use a square root curve for more natural transitions
-          const wetAmount = Math.sqrt(this.currentDryWetBalance);
-          const dryAmount = Math.sqrt(1 - this.currentDryWetBalance);
+          const wetAmount = Math.sqrt(clampedBalance);
+          const dryAmount = Math.sqrt(1 - clampedBalance);
 
           // Normalize so the total volume stays consistent
           const totalAmount = wetAmount + dryAmount;
-          this.dryGainNode.gain.value = dryAmount / totalAmount;
-          this.wetGainNode.gain.value = wetAmount / totalAmount;
           
-          console.log(`Dry/Wet Balance: ${(this.currentDryWetBalance * 100).toFixed(1)}% | Dry Gain: ${(this.dryGainNode.gain.value).toFixed(3)} | Wet Gain: ${(this.wetGainNode.gain.value).toFixed(3)}`);
-      }
-
-        // This method is no longer used - filter now uses triangle wave logic in updateAudioFilter
-        randomizeFilterFade() {
-            // Deprecated: Triangle wave now handled in updateAudioFilter
-        }
-
-      // Update the filter frequency and dry/wet balance with synchronized triangle wave oscillation
-      updateAudioFilter(deltaTime) {
-          if (!this.isFilterActive || !this.filterNode) {
-              return;
-          }
-
-          // Calculate elapsed time since wave started
-          const elapsedTime = this.time.now - this.filterWaveStartTime;
-          
-          // Calculate position in the wave cycle (0 to 1)
-          const waveProgress = (elapsedTime % this.FILTER_CYCLE_DURATION) / this.FILTER_CYCLE_DURATION;
-          
-          // Calculate target frequency based on triangle wave
-          // First half (0 to 0.5): ramp from MIN to MAX
-          // Second half (0.5 to 1.0): ramp from MAX to MIN
-          let targetFrequency;
-          if (waveProgress < 0.5) {
-              // Ascending: 300Hz -> 2000Hz over 8 seconds
-              const rampProgress = waveProgress * 2;  // 0 to 1
-              targetFrequency = this.MIN_FILTER_FREQUENCY + 
-                  (this.MAX_FILTER_FREQUENCY - this.MIN_FILTER_FREQUENCY) * rampProgress;
+          // Add safety check to prevent division by zero or NaN values
+          if (totalAmount > 0) {
+              this.dryGainNode.gain.value = dryAmount / totalAmount;
+              this.wetGainNode.gain.value = wetAmount / totalAmount;
           } else {
-              // Descending: 2000Hz -> 300Hz over 8 seconds
-              const rampProgress = (waveProgress - 0.5) * 2;  // 0 to 1
-              targetFrequency = this.MAX_FILTER_FREQUENCY - 
-                  (this.MAX_FILTER_FREQUENCY - this.MIN_FILTER_FREQUENCY) * rampProgress;
+              // Fallback to equal mix if calculation fails
+              this.dryGainNode.gain.value = 0.5;
+              this.wetGainNode.gain.value = 0.5;
           }
-          
-          // Apply the frequency to the filter
-          this.filterNode.frequency.value = targetFrequency;
-          this.currentFilterFrequency = targetFrequency;
-
-          // TESTING: Set dry/wet balance to static 0.8 (80% wet) to verify reverb is working
-          this.currentDryWetBalance = 0.8;
-          this.updateDryWetBalance();
       }
+
+         // This method is no longer used - filter now uses triangle wave logic in updateAudioFilter
+         randomizeFilterFade() {
+             // Deprecated: Triangle wave now handled in updateAudioFilter
+         }
+
+       // Generate a random cycle duration between 10-22 seconds
+       generateRandomCycleDuration() {
+           return Phaser.Math.Between(this.MIN_CYCLE_DURATION, this.MAX_CYCLE_DURATION);
+       }
+
+        // Update the filter frequency and dry/wet balance with independent triangle wave oscillation
+       updateAudioFilter(deltaTime) {
+           if (!this.isFilterActive || !this.filterNode) {
+               return;
+           }
+
+           // Calculate elapsed time since wave started
+           const elapsedTime = this.time.now - this.filterWaveStartTime;
+           
+           // Calculate filter wave progress and handle cycle completion
+           const filterWaveProgress = (elapsedTime % this.currentFilterCycleDuration) / this.currentFilterCycleDuration;
+           
+           // Check if filter cycle just completed and regenerate duration
+           if (elapsedTime > 0 && elapsedTime % this.currentFilterCycleDuration < deltaTime) {
+               this.currentFilterCycleDuration = this.generateRandomCycleDuration();
+           }
+           
+           // Calculate target frequency based on triangle wave
+           // First half (0 to 0.5): ramp from MIN to MAX
+           // Second half (0.5 to 1.0): ramp from MAX to MIN
+           let targetFrequency;
+           if (filterWaveProgress < 0.5) {
+               // Ascending: 300Hz -> 2000Hz over half the cycle
+               const rampProgress = filterWaveProgress * 2;  // 0 to 1
+               targetFrequency = this.MIN_FILTER_FREQUENCY + 
+                   (this.MAX_FILTER_FREQUENCY - this.MIN_FILTER_FREQUENCY) * rampProgress;
+           } else {
+               // Descending: 2000Hz -> 300Hz over half the cycle
+               const rampProgress = (filterWaveProgress - 0.5) * 2;  // 0 to 1
+               targetFrequency = this.MAX_FILTER_FREQUENCY - 
+                   (this.MAX_FILTER_FREQUENCY - this.MIN_FILTER_FREQUENCY) * rampProgress;
+           }
+           
+            // Apply the frequency to the filter
+            this.filterNode.frequency.value = targetFrequency;
+            this.currentFilterFrequency = targetFrequency;
+
+            // Calculate reverb wave progress and handle cycle completion
+            const reverbWaveProgress = (elapsedTime % this.currentReverbCycleDuration) / this.currentReverbCycleDuration;
+            
+            // Check if reverb cycle just completed and regenerate duration
+            if (elapsedTime > 0 && elapsedTime % this.currentReverbCycleDuration < deltaTime) {
+                this.currentReverbCycleDuration = this.generateRandomCycleDuration();
+            }
+            
+            // Calculate target dry/wet balance based on triangle wave
+            // First half (0 to 0.5): ramp from MIN to MAX
+            // Second half (0.5 to 1.0): ramp from MAX to MIN
+            let targetDryWetBalance;
+            if (reverbWaveProgress < 0.5) {
+                // Ascending: 30% -> 80% over half the cycle
+                const rampProgress = reverbWaveProgress * 2;  // 0 to 1
+                targetDryWetBalance = this.MIN_DRY_WET_BALANCE + 
+                    (this.MAX_DRY_WET_BALANCE - this.MIN_DRY_WET_BALANCE) * rampProgress;
+            } else {
+                // Descending: 80% -> 30% over half the cycle
+                const rampProgress = (reverbWaveProgress - 0.5) * 2;  // 0 to 1
+                targetDryWetBalance = this.MAX_DRY_WET_BALANCE - 
+                    (this.MAX_DRY_WET_BALANCE - this.MIN_DRY_WET_BALANCE) * rampProgress;
+            }
+            
+            // Apply the dry/wet balance to the reverb
+            this.currentDryWetBalance = targetDryWetBalance;
+            this.updateDryWetBalance();
+
+        }
 
      // Clean up the audio filter and disconnect it
       cleanupAudioFilter() {
@@ -363,13 +484,16 @@ class MainScene extends Phaser.Scene {
                   if (this.convolverNode) {
                       this.convolverNode.disconnect();
                   }
-                  if (this.mixGainNode) {
-                      this.mixGainNode.disconnect();
-                  }
-                  
-                  // Disconnect source and reconnect directly to destination
-                  this.backgroundMusic.source.disconnect();
-                  this.backgroundMusic.source.connect(this.sound.context.destination);
+                   if (this.mixGainNode) {
+                       this.mixGainNode.disconnect();
+                   }
+                   if (this.masterGainNode) {
+                       this.masterGainNode.disconnect();
+                   }
+                   
+                   // Disconnect source and reconnect directly to destination
+                   this.backgroundMusic.source.disconnect();
+                   this.backgroundMusic.source.connect(this.sound.context.destination);
               } catch (e) {
                   // Error during disconnect, might be already disconnected
               }
@@ -590,17 +714,22 @@ class MainScene extends Phaser.Scene {
            // Check win condition in case there are initially no enemies
            this.checkWinCondition();
            
-              // Start background music only on the first level (level index 0)
-              if (this.currentLevelIndex === 0 && (!this.backgroundMusic || !this.backgroundMusic.isPlaying)) {
-                  this.backgroundMusic = this.sound.add('darksichord', {
-                      loop: true,
-                      volume: 0.5
-                  });
-                  this.backgroundMusic.play();
-                  
-                  // Initialize the low pass filter for the background music
-                  this.initializeAudioFilter();
-              }
+               // Start background music only on the first level (level index 0)
+               if (this.currentLevelIndex === 0 && (!this.backgroundMusic || !this.backgroundMusic.isPlaying)) {
+                   this.backgroundMusic = this.sound.add('darksichord', {
+                       loop: false,
+                       volume: 0.5
+                   });
+                   this.backgroundMusic.play();
+                   
+                   // Initialize the low pass filter for the background music
+                   this.initializeAudioFilter();
+                   
+                   // Listen for when the music completes to manually loop and reinitialize audio chain
+                   this.backgroundMusic.once('complete', () => {
+                       this.handleAudioLoopReset();
+                   });
+               }
              
              // Enable attacking now that the game is initialized
              this.isGameStarted = true;
