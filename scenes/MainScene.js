@@ -107,15 +107,40 @@ class MainScene extends Phaser.Scene {
              }
          ];
 
-         // Werewolf detection and movement constants
-         this.WEREWOLF_DETECTION_RANGE = 300;    // pixels - when werewolf notices player
-         this.WEREWOLF_PATROL_SPEED = 100;       // pixels/second
-         this.WEREWOLF_HUNT_SPEED = 160;         // pixels/second - faster when hunting
+          // Werewolf detection and movement constants
+          this.WEREWOLF_DETECTION_RANGE = 300;    // pixels - when werewolf notices player
+          this.WEREWOLF_PATROL_SPEED = 100;       // pixels/second
+          this.WEREWOLF_HUNT_SPEED = 160;         // pixels/second - faster when hunting
 
-         // Current level index
-         this.currentLevelIndex = 0;
+          // Current level index
+          this.currentLevelIndex = 0;
 
-    }
+            // Low pass filter properties for background music
+            this.filterNode = null;
+            this.currentFilterFrequency = 1150;    // Initial frequency (midpoint between 300-2000)
+            this.isFilterActive = false;
+
+            // Filter configuration constants for triangle wave
+            this.MIN_FILTER_FREQUENCY = 300;
+            this.MAX_FILTER_FREQUENCY = 2000;
+            this.FILTER_CYCLE_DURATION = 16000;   // 16 seconds for full triangle wave (8s up, 8s down)
+            this.FILTER_RESONANCE = 1.0;
+            this.filterWaveStartTime = 0;         // Track when the current wave cycle started
+
+            // Cathedral reverb properties for background music
+            this.convolverNode = null;            // Convolver for reverb effect
+            this.dryGainNode = null;              // Gain node for dry signal
+            this.wetGainNode = null;              // Gain node for wet/reverb signal
+            this.mixGainNode = null;              // Gain node to mix dry and wet signals
+            this.cathedralBuffer = null;          // Audio buffer for impulse response
+            this.currentDryWetBalance = 0.5;      // Current dry/wet balance (0 = fully dry, 1 = fully wet)
+
+            // Reverb configuration constants for triangle wave
+            this.MIN_DRY_WET_BALANCE = 0.3;       // 30% wet minimum
+            this.MAX_DRY_WET_BALANCE = 0.8;       // 80% wet maximum
+            this.REVERB_CYCLE_DURATION = 16000;   // Same 16 second cycle as filter for synchronization
+
+        }
 
     preload() {
         // Load assets here
@@ -161,7 +186,194 @@ class MainScene extends Phaser.Scene {
 
            // Load background music
            this.load.audio('darksichord', 'assets/darksichord.wav');
+
+           // Load cathedral impulse response for reverb
+           this.load.audio('cathedral-ir', 'assets/cathedral-ir.wav');
         }
+
+      // Initialize the low pass filter and cathedral reverb for background music
+      initializeAudioFilter() {
+          // Access the Web Audio API context from Phaser's sound manager
+          const audioContext = this.sound.context;
+
+          // Create a biquad filter node if not already created
+          if (!this.filterNode) {
+              this.filterNode = audioContext.createBiquadFilter();
+              this.filterNode.type = 'lowpass';
+              this.filterNode.frequency.value = this.currentFilterFrequency;
+              this.filterNode.Q.value = this.FILTER_RESONANCE;
+          }
+
+          // Create convolver node for cathedral reverb if not already created
+          if (!this.convolverNode) {
+              this.convolverNode = audioContext.createConvolver();
+              
+              // Load the cathedral impulse response and set it as the convolver buffer
+              const cathedralSound = this.sound.get('cathedral-ir');
+              if (cathedralSound && cathedralSound.source) {
+                  // Get the audio buffer from the loaded sound
+                  this.cathedralBuffer = cathedralSound.source.buffer;
+                  this.convolverNode.buffer = this.cathedralBuffer;
+              }
+          }
+
+          // Create dry signal gain node if not already created
+          if (!this.dryGainNode) {
+              this.dryGainNode = audioContext.createGain();
+          }
+
+          // Create wet signal gain node if not already created
+          if (!this.wetGainNode) {
+              this.wetGainNode = audioContext.createGain();
+          }
+
+          // Create mix gain node if not already created
+          if (!this.mixGainNode) {
+              this.mixGainNode = audioContext.createGain();
+          }
+
+          // Connect the audio signal flow:
+          // backgroundMusic → filterNode → [dryGainNode ↘
+          //                                            mixGainNode → destination
+          //                              convolverNode ↗ (via wetGainNode)
+          if (this.backgroundMusic && this.backgroundMusic.source) {
+              try {
+                  this.backgroundMusic.source.disconnect();
+              } catch (e) {
+                  // Connection might not exist yet, that's fine
+              }
+              
+              // Connect source to filter
+              this.backgroundMusic.source.connect(this.filterNode);
+              
+              // Split signal into dry and wet paths
+              this.filterNode.connect(this.dryGainNode);
+              this.filterNode.connect(this.convolverNode);
+              
+              // Connect wet path through convolver to wetGainNode
+              this.convolverNode.connect(this.wetGainNode);
+              
+              // Mix both dry and wet signals together
+              this.dryGainNode.connect(this.mixGainNode);
+              this.wetGainNode.connect(this.mixGainNode);
+              
+              // Output to destination
+              this.mixGainNode.connect(audioContext.destination);
+              
+              // Initialize gain values - start with balanced dry/wet
+              this.updateDryWetBalance();
+          }
+
+          // Start the filter wave at current time
+          this.filterWaveStartTime = this.time.now;
+          this.isFilterActive = true;
+      }
+
+      // Update the dry/wet balance gains based on currentDryWetBalance
+      updateDryWetBalance() {
+          if (!this.dryGainNode || !this.wetGainNode) {
+              return;
+          }
+
+          // currentDryWetBalance ranges from 0 (fully dry) to 1 (fully wet)
+          // We use a square root curve for more natural transitions
+          const wetAmount = Math.sqrt(this.currentDryWetBalance);
+          const dryAmount = Math.sqrt(1 - this.currentDryWetBalance);
+
+          // Normalize so the total volume stays consistent
+          const totalAmount = wetAmount + dryAmount;
+          this.dryGainNode.gain.value = dryAmount / totalAmount;
+          this.wetGainNode.gain.value = wetAmount / totalAmount;
+      }
+
+        // This method is no longer used - filter now uses triangle wave logic in updateAudioFilter
+        randomizeFilterFade() {
+            // Deprecated: Triangle wave now handled in updateAudioFilter
+        }
+
+      // Update the filter frequency and dry/wet balance with synchronized triangle wave oscillation
+      updateAudioFilter(deltaTime) {
+          if (!this.isFilterActive || !this.filterNode) {
+              return;
+          }
+
+          // Calculate elapsed time since wave started
+          const elapsedTime = this.time.now - this.filterWaveStartTime;
+          
+          // Calculate position in the wave cycle (0 to 1)
+          const waveProgress = (elapsedTime % this.FILTER_CYCLE_DURATION) / this.FILTER_CYCLE_DURATION;
+          
+          // Calculate target frequency based on triangle wave
+          // First half (0 to 0.5): ramp from MIN to MAX
+          // Second half (0.5 to 1.0): ramp from MAX to MIN
+          let targetFrequency;
+          if (waveProgress < 0.5) {
+              // Ascending: 300Hz -> 2000Hz over 8 seconds
+              const rampProgress = waveProgress * 2;  // 0 to 1
+              targetFrequency = this.MIN_FILTER_FREQUENCY + 
+                  (this.MAX_FILTER_FREQUENCY - this.MIN_FILTER_FREQUENCY) * rampProgress;
+          } else {
+              // Descending: 2000Hz -> 300Hz over 8 seconds
+              const rampProgress = (waveProgress - 0.5) * 2;  // 0 to 1
+              targetFrequency = this.MAX_FILTER_FREQUENCY - 
+                  (this.MAX_FILTER_FREQUENCY - this.MIN_FILTER_FREQUENCY) * rampProgress;
+          }
+          
+          // Apply the frequency to the filter
+          this.filterNode.frequency.value = targetFrequency;
+          this.currentFilterFrequency = targetFrequency;
+
+          // Update dry/wet balance with synchronized triangle wave
+          // When filter is bright (high freq), reverb is dryer
+          // When filter is dark (low freq), reverb is wetter
+          let targetDryWetBalance;
+          if (waveProgress < 0.5) {
+              // Ascending: MIN_WET -> MAX_WET over 8 seconds (more reverb as filter brightens)
+              const rampProgress = waveProgress * 2;  // 0 to 1
+              targetDryWetBalance = this.MIN_DRY_WET_BALANCE + 
+                  (this.MAX_DRY_WET_BALANCE - this.MIN_DRY_WET_BALANCE) * rampProgress;
+          } else {
+              // Descending: MAX_WET -> MIN_WET over 8 seconds (less reverb as filter darkens)
+              const rampProgress = (waveProgress - 0.5) * 2;  // 0 to 1
+              targetDryWetBalance = this.MAX_DRY_WET_BALANCE - 
+                  (this.MAX_DRY_WET_BALANCE - this.MIN_DRY_WET_BALANCE) * rampProgress;
+          }
+
+          // Apply the dry/wet balance
+          this.currentDryWetBalance = targetDryWetBalance;
+          this.updateDryWetBalance();
+      }
+
+     // Clean up the audio filter and disconnect it
+      cleanupAudioFilter() {
+          if (this.backgroundMusic && this.backgroundMusic.source) {
+              try {
+                  // Disconnect all audio nodes from the chain
+                  if (this.filterNode) {
+                      this.filterNode.disconnect();
+                  }
+                  if (this.dryGainNode) {
+                      this.dryGainNode.disconnect();
+                  }
+                  if (this.wetGainNode) {
+                      this.wetGainNode.disconnect();
+                  }
+                  if (this.convolverNode) {
+                      this.convolverNode.disconnect();
+                  }
+                  if (this.mixGainNode) {
+                      this.mixGainNode.disconnect();
+                  }
+                  
+                  // Disconnect source and reconnect directly to destination
+                  this.backgroundMusic.source.disconnect();
+                  this.backgroundMusic.source.connect(this.sound.context.destination);
+              } catch (e) {
+                  // Error during disconnect, might be already disconnected
+              }
+          }
+          this.isFilterActive = false;
+      }
 
     // Idempotent initialization method that properly resets all game state
     initializeLevel() {
@@ -376,18 +588,21 @@ class MainScene extends Phaser.Scene {
            // Check win condition in case there are initially no enemies
            this.checkWinCondition();
            
-             // Start background music only on the first level (level index 0)
-             if (this.currentLevelIndex === 0 && (!this.backgroundMusic || !this.backgroundMusic.isPlaying)) {
-                 this.backgroundMusic = this.sound.add('darksichord', {
-                     loop: true,
-                     volume: 0.5
-                 });
-                 this.backgroundMusic.play();
-             }
-            
-            // Enable attacking now that the game is initialized
-            this.isGameStarted = true;
-     }
+              // Start background music only on the first level (level index 0)
+              if (this.currentLevelIndex === 0 && (!this.backgroundMusic || !this.backgroundMusic.isPlaying)) {
+                  this.backgroundMusic = this.sound.add('darksichord', {
+                      loop: true,
+                      volume: 0.5
+                  });
+                  this.backgroundMusic.play();
+                  
+                  // Initialize the low pass filter for the background music
+                  this.initializeAudioFilter();
+              }
+             
+             // Enable attacking now that the game is initialized
+             this.isGameStarted = true;
+      }
 
         checkWinCondition() {
             // Check if all enemies are defeated
@@ -474,17 +689,20 @@ class MainScene extends Phaser.Scene {
          }
      }
 
-     winGame() {
-    if(this.gameIsOver){
-      return;
-    }
-          this.gameIsOver = true;
-          
-          // Stop background music
-          if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
-              this.backgroundMusic.stop();
-              this.backgroundMusic = null;
-          }
+      winGame() {
+     if(this.gameIsOver){
+       return;
+     }
+           this.gameIsOver = true;
+           
+           // Stop background music
+           if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
+               this.backgroundMusic.stop();
+               this.backgroundMusic = null;
+           }
+
+           // Clean up audio filter
+           this.cleanupAudioFilter();
           
           // Display win text
          let winMessage = 'YOU WIN!';
@@ -538,6 +756,9 @@ class MainScene extends Phaser.Scene {
                  this.backgroundMusic.stop();
                  this.backgroundMusic = null;
              }
+
+             // Clean up audio filter before restart
+             this.cleanupAudioFilter();
 
              // Use a delayed call to ensure the event handler completes before reinitializing
              this.time.delayedCall(10, () => {
@@ -884,10 +1105,13 @@ class MainScene extends Phaser.Scene {
                  }
              });
 
-             // Pause background music
-             if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
-                 this.backgroundMusic.pause();
-             }
+              // Pause background music
+              if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
+                  this.backgroundMusic.pause();
+              }
+
+              // Pause filter updates
+              this.isFilterActive = false;
 
              // Create pause overlay
              this.pauseOverlay = this.add.rectangle(0, 0, 800, 600, 0x000000, 0.6);
@@ -909,10 +1133,14 @@ class MainScene extends Phaser.Scene {
              // Resume physics
              this.physics.resume();
 
-              // Resume background music
-              if (this.backgroundMusic && this.backgroundMusic.isPaused) {
-                  this.backgroundMusic.resume();
-              }
+               // Resume background music
+               if (this.backgroundMusic && this.backgroundMusic.isPaused) {
+                   this.backgroundMusic.resume();
+                   this.initializeAudioFilter();
+               }
+
+               // Resume filter updates
+               this.isFilterActive = true;
 
              // Remove pause overlay and text
              if (this.pauseOverlay) {
@@ -1113,15 +1341,19 @@ class MainScene extends Phaser.Scene {
         
     }
 
-     update() {
-        if (this.gameIsOver || this.isPaused){
-           return;
-        }
-           // Update game logic here
-          let isMoving = false;
-         let movingRight = false;
-          let movingLeft = false;
-          let movingVertical = false;
+      update() {
+         if (this.gameIsOver || this.isPaused){
+            return;
+         }
+
+         // Update the low pass filter on the background music
+         this.updateAudioFilter(this.game.loop.delta);
+
+            // Update game logic here
+           let isMoving = false;
+          let movingRight = false;
+           let movingLeft = false;
+           let movingVertical = false;
 
           // Check if dash is still active
           const isDashActive = this.time.now < this.dashEndTime;
@@ -1843,17 +2075,20 @@ class MainScene extends Phaser.Scene {
          }
        }
 
-      gameOver() {
-          if(this.gameIsOver){
-              return;
-          }
-          this.gameIsOver = true;
+       gameOver() {
+           if(this.gameIsOver){
+               return;
+           }
+           this.gameIsOver = true;
 
-          // Stop background music
-          if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
-              this.backgroundMusic.stop();
-              this.backgroundMusic = null;
-          }
+           // Stop background music
+           if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
+               this.backgroundMusic.stop();
+               this.backgroundMusic = null;
+           }
+
+           // Clean up audio filter
+           this.cleanupAudioFilter();
 
           // Stop player movement
          if (this.player && this.player.body) {
