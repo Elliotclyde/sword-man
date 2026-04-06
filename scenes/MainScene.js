@@ -215,13 +215,13 @@ class MainScene extends Phaser.Scene {
                   console.log('Created cathedral-ir sound object');
               }
               
-              // Get the audio buffer from the loaded sound
-              if (cathedralSound && cathedralSound.source && cathedralSound.source.buffer) {
-                  this.cathedralBuffer = cathedralSound.source.buffer;
+              // Get the audio buffer directly from the WebAudioSound object
+              if (cathedralSound && cathedralSound.audioBuffer) {
+                  this.cathedralBuffer = cathedralSound.audioBuffer;
                   this.convolverNode.buffer = this.cathedralBuffer;
-                  console.log('Cathedral IR buffer assigned to convolver. Buffer length:', this.cathedralBuffer.length);
+                  console.log('Cathedral IR buffer assigned to convolver. Buffer length:', this.cathedralBuffer.length, 'Duration:', this.cathedralBuffer.duration, 'seconds');
               } else {
-                  console.warn('Failed to load cathedral IR buffer. Cathedral sound:', cathedralSound, 'Source:', cathedralSound ? cathedralSound.source : null);
+                  console.warn('Failed to load cathedral IR buffer. Cathedral sound:', cathedralSound, 'AudioBuffer:', cathedralSound ? cathedralSound.audioBuffer : null);
               }
           }
 
