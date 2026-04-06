@@ -208,12 +208,20 @@ class MainScene extends Phaser.Scene {
           if (!this.convolverNode) {
               this.convolverNode = audioContext.createConvolver();
               
-              // Load the cathedral impulse response and set it as the convolver buffer
-              const cathedralSound = this.sound.get('cathedral-ir');
-              if (cathedralSound && cathedralSound.source) {
-                  // Get the audio buffer from the loaded sound
+              // Create the cathedral-ir sound object if it doesn't exist
+              let cathedralSound = this.sound.get('cathedral-ir');
+              if (!cathedralSound) {
+                  cathedralSound = this.sound.add('cathedral-ir');
+                  console.log('Created cathedral-ir sound object');
+              }
+              
+              // Get the audio buffer from the loaded sound
+              if (cathedralSound && cathedralSound.source && cathedralSound.source.buffer) {
                   this.cathedralBuffer = cathedralSound.source.buffer;
                   this.convolverNode.buffer = this.cathedralBuffer;
+                  console.log('Cathedral IR buffer assigned to convolver. Buffer length:', this.cathedralBuffer.length);
+              } else {
+                  console.warn('Failed to load cathedral IR buffer. Cathedral sound:', cathedralSound, 'Source:', cathedralSound ? cathedralSound.source : null);
               }
           }
 
@@ -232,37 +240,44 @@ class MainScene extends Phaser.Scene {
               this.mixGainNode = audioContext.createGain();
           }
 
-          // Connect the audio signal flow:
-          // backgroundMusic → filterNode → [dryGainNode ↘
-          //                                            mixGainNode → destination
-          //                              convolverNode ↗ (via wetGainNode)
-          if (this.backgroundMusic && this.backgroundMusic.source) {
-              try {
-                  this.backgroundMusic.source.disconnect();
-              } catch (e) {
-                  // Connection might not exist yet, that's fine
-              }
-              
-              // Connect source to filter
-              this.backgroundMusic.source.connect(this.filterNode);
-              
-              // Split signal into dry and wet paths
-              this.filterNode.connect(this.dryGainNode);
-              this.filterNode.connect(this.convolverNode);
-              
-              // Connect wet path through convolver to wetGainNode
-              this.convolverNode.connect(this.wetGainNode);
-              
-              // Mix both dry and wet signals together
-              this.dryGainNode.connect(this.mixGainNode);
-              this.wetGainNode.connect(this.mixGainNode);
-              
-              // Output to destination
-              this.mixGainNode.connect(audioContext.destination);
-              
-              // Initialize gain values - start with balanced dry/wet
-              this.updateDryWetBalance();
-          }
+           // Connect the audio signal flow:
+           // backgroundMusic → filterNode → [dryGainNode ↘
+           //                                            mixGainNode → destination
+           //                              convolverNode ↗ (via wetGainNode)
+           if (this.backgroundMusic && this.backgroundMusic.source) {
+               try {
+                   this.backgroundMusic.source.disconnect();
+               } catch (e) {
+                   // Connection might not exist yet, that's fine
+               }
+               
+               // Connect source to filter
+               this.backgroundMusic.source.connect(this.filterNode);
+               console.log('Connected: backgroundMusic.source → filterNode');
+               
+               // Split signal into dry and wet paths
+               this.filterNode.connect(this.dryGainNode);
+               this.filterNode.connect(this.convolverNode);
+               console.log('Connected: filterNode → dryGainNode');
+               console.log('Connected: filterNode → convolverNode');
+               
+               // Connect wet path through convolver to wetGainNode
+               this.convolverNode.connect(this.wetGainNode);
+               console.log('Connected: convolverNode → wetGainNode');
+               
+               // Mix both dry and wet signals together
+               this.dryGainNode.connect(this.mixGainNode);
+               this.wetGainNode.connect(this.mixGainNode);
+               console.log('Connected: dryGainNode → mixGainNode');
+               console.log('Connected: wetGainNode → mixGainNode');
+               
+               // Output to destination
+               this.mixGainNode.connect(audioContext.destination);
+               console.log('Connected: mixGainNode → audioContext.destination');
+               
+               // Initialize gain values - start with balanced dry/wet
+               this.updateDryWetBalance();
+           }
 
           // Start the filter wave at current time
           this.filterWaveStartTime = this.time.now;
@@ -272,6 +287,7 @@ class MainScene extends Phaser.Scene {
       // Update the dry/wet balance gains based on currentDryWetBalance
       updateDryWetBalance() {
           if (!this.dryGainNode || !this.wetGainNode) {
+              console.warn('Dry or wet gain node not initialized');
               return;
           }
 
@@ -284,6 +300,8 @@ class MainScene extends Phaser.Scene {
           const totalAmount = wetAmount + dryAmount;
           this.dryGainNode.gain.value = dryAmount / totalAmount;
           this.wetGainNode.gain.value = wetAmount / totalAmount;
+          
+          console.log(`Dry/Wet Balance: ${(this.currentDryWetBalance * 100).toFixed(1)}% | Dry Gain: ${(this.dryGainNode.gain.value).toFixed(3)} | Wet Gain: ${(this.wetGainNode.gain.value).toFixed(3)}`);
       }
 
         // This method is no longer used - filter now uses triangle wave logic in updateAudioFilter
@@ -323,24 +341,8 @@ class MainScene extends Phaser.Scene {
           this.filterNode.frequency.value = targetFrequency;
           this.currentFilterFrequency = targetFrequency;
 
-          // Update dry/wet balance with synchronized triangle wave
-          // When filter is bright (high freq), reverb is dryer
-          // When filter is dark (low freq), reverb is wetter
-          let targetDryWetBalance;
-          if (waveProgress < 0.5) {
-              // Ascending: MIN_WET -> MAX_WET over 8 seconds (more reverb as filter brightens)
-              const rampProgress = waveProgress * 2;  // 0 to 1
-              targetDryWetBalance = this.MIN_DRY_WET_BALANCE + 
-                  (this.MAX_DRY_WET_BALANCE - this.MIN_DRY_WET_BALANCE) * rampProgress;
-          } else {
-              // Descending: MAX_WET -> MIN_WET over 8 seconds (less reverb as filter darkens)
-              const rampProgress = (waveProgress - 0.5) * 2;  // 0 to 1
-              targetDryWetBalance = this.MAX_DRY_WET_BALANCE - 
-                  (this.MAX_DRY_WET_BALANCE - this.MIN_DRY_WET_BALANCE) * rampProgress;
-          }
-
-          // Apply the dry/wet balance
-          this.currentDryWetBalance = targetDryWetBalance;
+          // TESTING: Set dry/wet balance to static 0.8 (80% wet) to verify reverb is working
+          this.currentDryWetBalance = 0.8;
           this.updateDryWetBalance();
       }
 
