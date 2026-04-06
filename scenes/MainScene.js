@@ -153,15 +153,18 @@ class MainScene extends Phaser.Scene {
               frameHeight: 16
           });
 
-          // HealthBars.png contains health bar sprites, 48x20 pixels each
-          this.load.spritesheet('healthbars', 'assets/HealthBars.png', {
-              frameWidth: 48,
-              frameHeight: 16
-          });
-       }
+           // HealthBars.png contains health bar sprites, 48x20 pixels each
+           this.load.spritesheet('healthbars', 'assets/HealthBars.png', {
+               frameWidth: 48,
+               frameHeight: 16
+           });
+
+           // Load background music
+           this.load.audio('darksichord', 'assets/darksichord.wav');
+        }
 
     // Idempotent initialization method that properly resets all game state
-    initializeGame() {
+    initializeLevel() {
 
         // Reset game over flag
         this.gameIsOver = false;
@@ -370,12 +373,21 @@ class MainScene extends Phaser.Scene {
           this.hitEffect.setDepth(100); // Ensure it's on top
           this.hitEffect.setVisible(false);
 
-          // Check win condition in case there are initially no enemies
-          this.checkWinCondition();
-          
-          // Enable attacking now that the game is initialized
-          this.isGameStarted = true;
-    }
+           // Check win condition in case there are initially no enemies
+           this.checkWinCondition();
+           
+             // Start background music only on the first level (level index 0)
+             if (this.currentLevelIndex === 0 && (!this.backgroundMusic || !this.backgroundMusic.isPlaying)) {
+                 this.backgroundMusic = this.sound.add('darksichord', {
+                     loop: true,
+                     volume: 0.5
+                 });
+                 this.backgroundMusic.play();
+             }
+            
+            // Enable attacking now that the game is initialized
+            this.isGameStarted = true;
+     }
 
         checkWinCondition() {
             // Check if all enemies are defeated
@@ -385,7 +397,7 @@ class MainScene extends Phaser.Scene {
                 if (this.currentLevelIndex < this.levels.length - 1) {
                     // Advance to next level
                     this.currentLevelIndex++;
-                    this.initializeGame();
+                    this.initializeLevel();
                 } else {
                     // All levels completed, win the game
                     this.winGame();
@@ -455,23 +467,30 @@ class MainScene extends Phaser.Scene {
         // Destroy the fireball
         fireball.destroy();
 
-        // Check for game over
-        if (player.health <= 0) {
-            player.alpha = 1;
-            this.gameOver();
-        }
-    }
+         // Check for game over
+         if (player.health <= 0) {
+             player.alpha = 1;
+             this.gameOver();
+         }
+     }
 
-    winGame() {
-  if(this.gameIsOver){
-    return;
-  }
-        this.gameIsOver = true;
-        // Display win text
-        let winMessage = 'YOU WIN!';
-        if (this.currentLevelIndex < this.levels.length - 1) {
-            winMessage = `LEVEL ${this.levels[this.currentLevelIndex].level} COMPLETE!`;
-        }
+     winGame() {
+    if(this.gameIsOver){
+      return;
+    }
+          this.gameIsOver = true;
+          
+          // Stop background music
+          if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
+              this.backgroundMusic.stop();
+              this.backgroundMusic = null;
+          }
+          
+          // Display win text
+         let winMessage = 'YOU WIN!';
+         if (this.currentLevelIndex < this.levels.length - 1) {
+             winMessage = `LEVEL ${this.levels[this.currentLevelIndex].level} COMPLETE!`;
+         }
 
         this.resultText = this.add.text(400, 250, winMessage, {
             fontSize: '64px',
@@ -511,14 +530,20 @@ class MainScene extends Phaser.Scene {
                 this.spaceKeyListener.destroy();
                 this.spaceKeyListener = null;
             }
-            this.player.health = 6;
-            this.isGameStarted = false;
+             this.player.health = 6;
+             this.isGameStarted = false;
 
-            // Use a delayed call to ensure the event handler completes before reinitializing
-            this.time.delayedCall(10, () => {
-                this.currentLevelIndex = 0; // Reset to first level
-                this.initializeGame();
-            });
+             // Stop and clear any lingering music before restart
+             if (this.backgroundMusic) {
+                 this.backgroundMusic.stop();
+                 this.backgroundMusic = null;
+             }
+
+             // Use a delayed call to ensure the event handler completes before reinitializing
+             this.time.delayedCall(10, () => {
+                 this.currentLevelIndex = 0; // Reset to first level
+                 this.initializeLevel();
+             });
         };
 
         this.playAgainButton.on('pointerdown', restartGame);
@@ -837,59 +862,69 @@ class MainScene extends Phaser.Scene {
           this.isGameStarted = true; // Track if game has started, set to false after level completion
 
         // Initialize the game state using our idempotent method
-        this.initializeGame();
+        this.initializeLevel();
     }
 
-    togglePause() {
-        if (this.gameIsOver) return;
+     togglePause() {
+         if (this.gameIsOver) return;
 
-        this.isPaused = !this.isPaused;
+         this.isPaused = !this.isPaused;
 
-        if (this.isPaused) {
-            // Pause physics
-            this.physics.pause();
+         if (this.isPaused) {
+             // Pause physics
+             this.physics.pause();
 
-            // Stop player and all enemies
-            if (this.player && this.player.body) {
-                this.player.body.setVelocity(0, 0);
-            }
-            this.enemies.children.entries.forEach(enemy => {
-                if (!enemy.destroyed && enemy.body) {
-                    enemy.body.setVelocity(0, 0);
-                }
-            });
+             // Stop player and all enemies
+             if (this.player && this.player.body) {
+                 this.player.body.setVelocity(0, 0);
+             }
+             this.enemies.children.entries.forEach(enemy => {
+                 if (!enemy.destroyed && enemy.body) {
+                     enemy.body.setVelocity(0, 0);
+                 }
+             });
 
-            // Create pause overlay
-            this.pauseOverlay = this.add.rectangle(0, 0, 800, 600, 0x000000, 0.6);
-            this.pauseOverlay.setOrigin(0, 0);
-            this.pauseOverlay.setDepth(300);
-            this.pauseOverlay.setScrollFactor(0);
+             // Pause background music
+             if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
+                 this.backgroundMusic.pause();
+             }
 
-            // Create pause text (reserved for menu)
-            this.pauseText = this.add.text(400, 300, 'PAUSED', {
-                fontSize: '64px',
-                fill: '#ffffff',
-                stroke: '#000000',
-                strokeThickness: 6
-            });
-            this.pauseText.setOrigin(0.5);
-            this.pauseText.setDepth(310);
-            this.pauseText.setScrollFactor(0);
-        } else {
-            // Resume physics
-            this.physics.resume();
+             // Create pause overlay
+             this.pauseOverlay = this.add.rectangle(0, 0, 800, 600, 0x000000, 0.6);
+             this.pauseOverlay.setOrigin(0, 0);
+             this.pauseOverlay.setDepth(300);
+             this.pauseOverlay.setScrollFactor(0);
 
-            // Remove pause overlay and text
-            if (this.pauseOverlay) {
-                this.pauseOverlay.destroy();
-                this.pauseOverlay = null;
-            }
-            if (this.pauseText) {
-                this.pauseText.destroy();
-                this.pauseText = null;
-            }
-        }
-    }
+             // Create pause text (reserved for menu)
+             this.pauseText = this.add.text(400, 300, 'PAUSED', {
+                 fontSize: '64px',
+                 fill: '#ffffff',
+                 stroke: '#000000',
+                 strokeThickness: 6
+             });
+             this.pauseText.setOrigin(0.5);
+             this.pauseText.setDepth(310);
+             this.pauseText.setScrollFactor(0);
+         } else {
+             // Resume physics
+             this.physics.resume();
+
+              // Resume background music
+              if (this.backgroundMusic && this.backgroundMusic.isPaused) {
+                  this.backgroundMusic.resume();
+              }
+
+             // Remove pause overlay and text
+             if (this.pauseOverlay) {
+                 this.pauseOverlay.destroy();
+                 this.pauseOverlay = null;
+             }
+             if (this.pauseText) {
+                 this.pauseText.destroy();
+                 this.pauseText = null;
+             }
+         }
+     }
 
     spawnEnemy(type = enemyTypes.ORC) {
         // Create an enemy at a random position, maintaining minimum distance from player
@@ -1798,26 +1833,32 @@ class MainScene extends Phaser.Scene {
                        }
                    });
 
-         // Check for game over
-         if (player.health <= 0) {
-             player.alpha = 1;
-             this.gameOver();
-         }
+          // Check for game over
+          if (player.health <= 0) {
+              player.alpha = 1;
+              this.gameOver();
+          }
            }
 
          }
        }
 
-    gameOver() {
-        if(this.gameIsOver){
-            return;
-        }
-        this.gameIsOver = true;
+      gameOver() {
+          if(this.gameIsOver){
+              return;
+          }
+          this.gameIsOver = true;
 
-        // Stop player movement
-        if (this.player && this.player.body) {
-            this.player.body.setVelocity(0, 0);
-        }
+          // Stop background music
+          if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
+              this.backgroundMusic.stop();
+              this.backgroundMusic = null;
+          }
+
+          // Stop player movement
+         if (this.player && this.player.body) {
+             this.player.body.setVelocity(0, 0);
+         }
 
          // Stop all enemies
          const enemiesToStop = [...this.enemies.children.entries];
@@ -1914,7 +1955,7 @@ class MainScene extends Phaser.Scene {
                      this.isGameStarted = false;
                      this.time.delayedCall(10, () => {
                          this.currentLevelIndex = 0;
-                         this.initializeGame();
+                         this.initializeLevel();
                      });
                  };
 
