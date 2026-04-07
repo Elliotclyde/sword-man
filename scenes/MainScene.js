@@ -144,11 +144,15 @@ class MainScene extends Phaser.Scene {
               this.MAX_DRY_WET_BALANCE = 0.8;       // 80% wet maximum
               this.currentReverbCycleDuration = 0;  // Will be randomized on initialization
 
-              // Master gain node for overall volume control to prevent clipping
-              this.masterGainNode = null;           // Master gain node
-              this.MASTER_GAIN_REDUCTION = 0.3;
+               // Master gain node for overall volume control to prevent clipping
+               this.masterGainNode = null;           // Master gain node
+               this.MASTER_GAIN_REDUCTION = 0.3;
 
-         }
+               // Background music gain node for independent volume control
+               this.backgroundMusicGainNode = null;  // Background music gain node
+              this.BACKGROUND_MUSIC_VOLUME = 0.2;   // Independent background music volume
+
+          }
 
     preload() {
         // Load assets here
@@ -216,21 +220,17 @@ class MainScene extends Phaser.Scene {
           if (!this.convolverNode) {
               this.convolverNode = audioContext.createConvolver();
               
-              // Create the cathedral-ir sound object if it doesn't exist
-              let cathedralSound = this.sound.get('cathedral-ir');
-              if (!cathedralSound) {
-                  cathedralSound = this.sound.add('cathedral-ir');
-                  console.log('Created cathedral-ir sound object');
-              }
-              
-              // Get the audio buffer directly from the WebAudioSound object
-              if (cathedralSound && cathedralSound.audioBuffer) {
-                  this.cathedralBuffer = cathedralSound.audioBuffer;
-                  this.convolverNode.buffer = this.cathedralBuffer;
-                  console.log('Cathedral IR buffer assigned to convolver. Buffer length:', this.cathedralBuffer.length, 'Duration:', this.cathedralBuffer.duration, 'seconds');
-              } else {
-                  console.warn('Failed to load cathedral IR buffer. Cathedral sound:', cathedralSound, 'AudioBuffer:', cathedralSound ? cathedralSound.audioBuffer : null);
-              }
+               // Create the cathedral-ir sound object if it doesn't exist
+               let cathedralSound = this.sound.get('cathedral-ir');
+               if (!cathedralSound) {
+                   cathedralSound = this.sound.add('cathedral-ir');
+               }
+               
+               // Get the audio buffer directly from the WebAudioSound object
+               if (cathedralSound && cathedralSound.audioBuffer) {
+                   this.cathedralBuffer = cathedralSound.audioBuffer;
+                   this.convolverNode.buffer = this.cathedralBuffer;
+               }
           }
 
           // Create dry signal gain node if not already created
@@ -248,50 +248,52 @@ class MainScene extends Phaser.Scene {
                this.mixGainNode = audioContext.createGain();
            }
 
-           // Create master gain node if not already created
-           if (!this.masterGainNode) {
-               this.masterGainNode = audioContext.createGain();
-               this.masterGainNode.gain.value = this.MASTER_GAIN_REDUCTION;
-           }
+            // Create master gain node if not already created
+            if (!this.masterGainNode) {
+                this.masterGainNode = audioContext.createGain();
+                this.masterGainNode.gain.value = this.MASTER_GAIN_REDUCTION;
+            }
 
-            // Connect the audio signal flow:
-            // backgroundMusic → filterNode → [dryGainNode ↘
-            //                                            mixGainNode → masterGainNode → destination
-            //                              convolverNode ↗ (via wetGainNode)
-            if (this.backgroundMusic && this.backgroundMusic.source) {
-                try {
-                    this.backgroundMusic.source.disconnect();
-                } catch (e) {
-                    // Connection might not exist yet, that's fine
-                }
-                
-                // Connect source to filter
-                this.backgroundMusic.source.connect(this.filterNode);
-                console.log('Connected: backgroundMusic.source → filterNode');
-                
-                // Split signal into dry and wet paths
-                this.filterNode.connect(this.dryGainNode);
-                this.filterNode.connect(this.convolverNode);
-                console.log('Connected: filterNode → dryGainNode');
-                console.log('Connected: filterNode → convolverNode');
-                
-                // Connect wet path through convolver to wetGainNode
-                this.convolverNode.connect(this.wetGainNode);
-                console.log('Connected: convolverNode → wetGainNode');
-                
-                // Mix both dry and wet signals together
-                this.dryGainNode.connect(this.mixGainNode);
-                this.wetGainNode.connect(this.mixGainNode);
-                console.log('Connected: dryGainNode → mixGainNode');
-                console.log('Connected: wetGainNode → mixGainNode');
-                
-                // Output through master gain to destination
-                this.mixGainNode.connect(this.masterGainNode);
-                this.masterGainNode.connect(audioContext.destination);
-                console.log('Connected: mixGainNode → masterGainNode → audioContext.destination');
-                
-                // Initialize gain values - start with balanced dry/wet
-                this.updateDryWetBalance();
+            // Create background music gain node if not already created
+            if (!this.backgroundMusicGainNode) {
+                this.backgroundMusicGainNode = audioContext.createGain();
+                this.backgroundMusicGainNode.gain.value = this.BACKGROUND_MUSIC_VOLUME;
+            }
+
+              // Connect the audio signal flow:
+             // backgroundMusic → backgroundMusicGainNode → filterNode → [dryGainNode ↘
+             //                                                                       mixGainNode → masterGainNode → destination
+             //                                                 convolverNode ↗ (via wetGainNode)
+             if (this.backgroundMusic && this.backgroundMusic.source) {
+                 try {
+                     this.backgroundMusic.source.disconnect();
+                 } catch (e) {
+                     // Connection might not exist yet, that's fine
+                 }
+                  
+                  // Connect source to background music gain node
+                  this.backgroundMusic.source.connect(this.backgroundMusicGainNode);
+                  
+                  // Connect background music gain node to filter
+                  this.backgroundMusicGainNode.connect(this.filterNode);
+                 
+                 // Split signal into dry and wet paths
+                 this.filterNode.connect(this.dryGainNode);
+                 this.filterNode.connect(this.convolverNode);
+                 
+                 // Connect wet path through convolver to wetGainNode
+                 this.convolverNode.connect(this.wetGainNode);
+                 
+                 // Mix both dry and wet signals together
+                 this.dryGainNode.connect(this.mixGainNode);
+                 this.wetGainNode.connect(this.mixGainNode);
+                 
+                 // Output through master gain to destination
+                 this.mixGainNode.connect(this.masterGainNode);
+                 this.masterGainNode.connect(audioContext.destination);
+                 
+                 // Initialize gain values - start with balanced dry/wet
+                 this.updateDryWetBalance();
             }
 
            // Start the filter wave at current time
@@ -304,69 +306,75 @@ class MainScene extends Phaser.Scene {
             this.isFilterActive = true;
        }
 
-       // Handle audio chain reinitialization when background music completes
-       // Manually loops the music while preserving Web Audio node chain
-       handleAudioLoopReset() {
-           if (!this.backgroundMusic) {
-               console.log('[Audio Loop] No background music found');
+        // Handle audio chain reinitialization when background music completes
+        // Manually loops the music while preserving Web Audio node chain
+        handleAudioLoopReset() {
+            if (!this.backgroundMusic) {
+                return;
+            }
+
+            // Safely disconnect all existing nodes from the old source
+            try {
+                if (this.backgroundMusic.source) {
+                    this.backgroundMusic.source.disconnect();
+                }
+            } catch (e) {
+                // Source may already be disconnected, that's fine
+            }
+
+            // Restart the music - this creates a new internal source in Phaser
+            this.backgroundMusic.play();
+
+            // Check if new source exists
+            if (!this.backgroundMusic.source) {
+                return;
+            }
+
+            const audioContext = this.sound.context;
+
+             try {
+                 // CRITICAL: Immediately disconnect the new source before Phaser auto-connects it
+                 // This prevents duplicate audio (filtered + unfiltered playing together)
+                 this.backgroundMusic.source.disconnect();
+                 
+                 // CRITICAL: Disconnect the gain node from filter to prevent duplicate connection paths
+                 // This is essential on first loop when the gain node was already connected from initialization
+                 try {
+                     this.backgroundMusicGainNode.disconnect(this.filterNode);
+                 } catch (e) {
+                     // Node might not be connected yet, that's fine
+                 }
+                 
+                 // Now reconnect the new source to the gain node
+                 this.backgroundMusic.source.connect(this.backgroundMusicGainNode);
+                 this.backgroundMusicGainNode.connect(this.filterNode);
+                 
+                 // CRITICAL: Reset all gain node values to prevent volume accumulation across loops
+                 this.backgroundMusicGainNode.gain.value = this.BACKGROUND_MUSIC_VOLUME;
+                 this.masterGainNode.gain.value = this.MASTER_GAIN_REDUCTION;
+                 
+                 // Reset dry/wet gain nodes to ensure no volume carryover
+                 this.dryGainNode.gain.value = 1.0;
+                 this.wetGainNode.gain.value = 1.0;
+                 this.mixGainNode.gain.value = 1.0;
+                 
+                 // Reapply current automation values to ensure smooth transition
+                 this.filterNode.frequency.value = this.currentFilterFrequency;
+                 this.updateDryWetBalance();
+                 
+                 // Set up listener again for the next loop
+                 this.backgroundMusic.once('complete', () => {
+                     this.handleAudioLoopReset();
+                 });
+             } catch (e) {
+                 // Error reconnecting audio nodes on loop
+             }
+        }
+
+       updateDryWetBalance() {
+           if (!this.dryGainNode || !this.wetGainNode) {
                return;
            }
-
-           console.log('[Audio Loop] Starting handleAudioLoopReset');
-
-           // Safely disconnect all existing nodes from the old source
-           try {
-               if (this.backgroundMusic.source) {
-                   console.log('[Audio Loop] Disconnecting old source');
-                   this.backgroundMusic.source.disconnect();
-               }
-           } catch (e) {
-               // Source may already be disconnected, that's fine
-               console.log('[Audio Loop] Old source already disconnected:', e.message);
-           }
-
-           // Restart the music - this creates a new internal source in Phaser
-           console.log('[Audio Loop] Calling play() to create new source');
-           this.backgroundMusic.play();
-
-           // Check if new source exists
-           if (!this.backgroundMusic.source) {
-               console.log('[Audio Loop] ERROR: No new source created after play()');
-               return;
-           }
-
-           const audioContext = this.sound.context;
-
-           try {
-               // CRITICAL: Immediately disconnect the new source before Phaser auto-connects it
-               // This prevents duplicate audio (filtered + unfiltered playing together)
-               console.log('[Audio Loop] Immediately disconnecting new source to prevent Phaser auto-connection');
-               this.backgroundMusic.source.disconnect();
-               
-               // Now reconnect the new source ONLY to our filter chain
-               console.log('[Audio Loop] Reconnecting new source to filter chain');
-               this.backgroundMusic.source.connect(this.filterNode);
-               
-               // Reapply current automation values to ensure smooth transition
-               this.filterNode.frequency.value = this.currentFilterFrequency;
-               this.updateDryWetBalance();
-               
-               console.log('[Audio Loop] Audio chain reconnected successfully. Current filter freq:', this.currentFilterFrequency, 'Dry/wet balance:', this.currentDryWetBalance);
-               
-               // Set up listener again for the next loop
-               this.backgroundMusic.once('complete', () => {
-                   this.handleAudioLoopReset();
-               });
-           } catch (e) {
-               console.error('[Audio Loop] Error reconnecting audio nodes on loop:', e);
-           }
-       }
-
-      updateDryWetBalance() {
-          if (!this.dryGainNode || !this.wetGainNode) {
-              console.warn('Dry or wet gain node not initialized');
-              return;
-          }
 
           // Clamp currentDryWetBalance to prevent edge cases that can cause division by zero
           const clampedBalance = Math.max(0, Math.min(1, this.currentDryWetBalance));
@@ -490,8 +498,11 @@ class MainScene extends Phaser.Scene {
                    if (this.masterGainNode) {
                        this.masterGainNode.disconnect();
                    }
-                   
-                   // Disconnect source and reconnect directly to destination
+                   if (this.backgroundMusicGainNode) {
+                       this.backgroundMusicGainNode.disconnect();
+                   }
+                    
+                    // Disconnect source and reconnect directly to destination
                    this.backgroundMusic.source.disconnect();
                    this.backgroundMusic.source.connect(this.sound.context.destination);
               } catch (e) {
@@ -714,13 +725,12 @@ class MainScene extends Phaser.Scene {
            // Check win condition in case there are initially no enemies
            this.checkWinCondition();
            
-               // Start background music only on the first level (level index 0)
-               if (this.currentLevelIndex === 0 && (!this.backgroundMusic || !this.backgroundMusic.isPlaying)) {
-                   this.backgroundMusic = this.sound.add('darksichord', {
-                       loop: false,
-                       volume: 0.5
-                   });
-                   this.backgroundMusic.play();
+                // Start background music only on the first level (level index 0)
+                if (this.currentLevelIndex === 0 && (!this.backgroundMusic || !this.backgroundMusic.isPlaying)) {
+                    this.backgroundMusic = this.sound.add('darksichord', {
+                        loop: false
+                    });
+                    this.backgroundMusic.play();
                    
                    // Initialize the low pass filter for the background music
                    this.initializeAudioFilter();
