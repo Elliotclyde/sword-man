@@ -1062,19 +1062,20 @@ class MainScene extends Phaser.Scene {
            this.enemies.clear();
     }
 
-    create() {
-        // Set up pause key
-        this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-        this.escapeKey.on('down', () => this.togglePause());
+     create() {
+         // Set up pause key
+         this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+         this.escapeKey.on('down', () => this.togglePause());
 
-         // Create a 20x20 grid of random dungeon tiles
-         const tileSize = 16; // Each tile is 16x16
-         const gridWidth = 20;
-         const gridHeight = 20;
-         const scaleX = 800 / (gridWidth * tileSize); // Scale to fit the game width
-         const scaleY = 600 / (gridHeight * tileSize); // Scale to fit the game height
-         const scale = Math.max(scaleX, scaleY); // Use the larger scale to fill the screen
-         this.tileScale = scale; // Store scale as instance variable for later use
+          // Create a 20x20 grid of random dungeon tiles
+          const tileSize = 16; // Each tile is 16x16
+          const gridWidth = 20;
+          const gridHeight = 20;
+          const scaleX = 800 / (gridWidth * tileSize); // Scale to fit the game width
+          const scaleY = 600 / (gridHeight * tileSize); // Scale to fit the game height
+          const scale = Math.max(scaleX, scaleY); // Use the larger scale to fill the screen
+          this.tileScale = scale; // Store scale as instance variable for later use
+          this.peninsulas = []; // Track all peninsulas for collision detection
 
          for (let y = 0; y < gridHeight; y++) {
             for (let x = 0; x < gridWidth; x++) {
@@ -1508,18 +1509,154 @@ class MainScene extends Phaser.Scene {
              wall.body.setOffset(0, 0);
          }
          
-         // Add bottom-right corner sprite (frame 45)
-         const rightWall = this.add.sprite(rightX, 600 - scaledTileSize, 'dungeon', 45);
-         rightWall.setScale(scale);
-         rightWall.setOrigin(0, 0);
-         rightWall.setDepth(-9); // Just above background tiles
-         this.walls.add(rightWall);
-         this.physics.add.existing(rightWall, true); // true = isStatic
-         rightWall.body.setSize(scaledTileSize, scaledTileSize);
-         rightWall.body.setOffset(0, 0);
-      }
+          // Add bottom-right corner sprite (frame 45)
+          const rightWall = this.add.sprite(rightX, 600 - scaledTileSize, 'dungeon', 45);
+          rightWall.setScale(scale);
+          rightWall.setOrigin(0, 0);
+          rightWall.setDepth(-9); // Just above background tiles
+          this.walls.add(rightWall);
+          this.physics.add.existing(rightWall, true); // true = isStatic
+          rightWall.body.setSize(scaledTileSize, scaledTileSize);
+           rightWall.body.setOffset(0, 0);
 
-       spawnDecorations() {
+           // Generate peninsulas (walls protruding from sides)
+           this.generatePeninsulas(tileSize, gridWidth, gridHeight, scale);
+        }
+
+        generatePeninsulas(tileSize, gridWidth, gridHeight, scale) {
+            // Clear any existing peninsula data
+            this.peninsulas = [];
+
+            const scaledTileSize = tileSize * scale;
+            const bottomWallY = 600 - scaledTileSize;
+            const rightWallX = 800 - scaledTileSize;
+            
+            // Wall frame options
+            const leftWallFrames = [10, 20, 30];
+            const rightWallFrames = [15, 25, 35];
+            const bottomWallFrames = [41, 42, 43, 44];
+
+            // Randomly decide number of peninsulas (0-2)
+            const peninsulaCount = Phaser.Math.Between(0, 2);
+
+            for (let p = 0; p < peninsulaCount; p++) {
+                // Random dimensions between 4x4 and 8x8 tiles
+                const peninsulaWidth = Phaser.Math.Between(4, 8);
+                const peninsulaHeight = Phaser.Math.Between(4, 8);
+
+                // Randomly choose which side (left or right)
+                const side = Phaser.Math.RND.pick(['left', 'right']);
+
+                // Calculate valid Y range (avoid corners: keep 3+ tiles from top/bottom)
+                const minGridY = 3;
+                const maxGridY = gridHeight - 3 - peninsulaHeight;
+
+                // Only create peninsula if there's valid space vertically
+                if (maxGridY <= minGridY) {
+                    continue;
+                }
+
+                const gridY = Phaser.Math.Between(minGridY, maxGridY);
+
+                // Determine grid X based on side
+                let gridX;
+                if (side === 'left') {
+                    gridX = -peninsulaWidth; // Extends left from x=0
+                } else {
+                    gridX = gridWidth; // Extends right from x=800
+                }
+
+                // Store peninsula metadata
+                const peninsula = {
+                    side,
+                    gridX,
+                    gridY,
+                    gridWidth: peninsulaWidth,
+                    gridHeight: peninsulaHeight,
+                    tiles: []
+                };
+
+                // Create all tiles for this peninsula
+                for (let ty = 0; ty < peninsulaHeight; ty++) {
+                    for (let tx = 0; tx < peninsulaWidth; tx++) {
+                        const currentGridX = gridX + tx;
+                        const currentGridY = gridY + ty;
+                        const pixelX = currentGridX * scaledTileSize;
+                        const pixelY = currentGridY * scaledTileSize;
+
+                        // Determine frame based on position
+                        let frame;
+                        const isBottom = (currentGridY === gridY + peninsulaHeight - 1);
+                        const isRight = (tx === peninsulaWidth - 1);
+                        const isLeft = (tx === 0);
+
+                        if (isBottom) {
+                            // Bottom row uses bottom wall frames or corners
+                            if (isLeft && side === 'left') {
+                                frame = 40; // Bottom-left corner for left peninsulas
+                            } else if (isRight && side === 'right') {
+                                frame = 45; // Bottom-right corner for right peninsulas
+                            } else {
+                                frame = Phaser.Utils.Array.GetRandom(bottomWallFrames);
+                            }
+                        } else if (side === 'left') {
+                            // Left peninsulas use left wall frames
+                            frame = Phaser.Utils.Array.GetRandom(leftWallFrames);
+                        } else {
+                            // Right peninsulas use right wall frames
+                            frame = Phaser.Utils.Array.GetRandom(rightWallFrames);
+                        }
+
+                        // Create wall sprite
+                        const wall = this.add.sprite(pixelX, pixelY, 'dungeon', frame);
+                        wall.setScale(scale);
+                        wall.setOrigin(0, 0);
+                        wall.setDepth(-9); // Same depth as other walls
+                        this.walls.add(wall);
+
+                        // Add physics body
+                        this.physics.add.existing(wall, true); // Static
+                        
+                        // Use full collision for peninsula tiles
+                        wall.body.setSize(scaledTileSize, scaledTileSize);
+                        wall.body.setOffset(0, 0);
+
+                        // Track tile in peninsula data
+                        peninsula.tiles.push({
+                            gridX: currentGridX,
+                            gridY: currentGridY,
+                            pixelX,
+                            pixelY
+                        });
+                    }
+                }
+
+                // Store peninsula
+                this.peninsulas.push(peninsula);
+            }
+        }
+
+        isPeninsulaTile(gridX, gridY) {
+            // Check if a grid position is occupied by any peninsula
+            for (const peninsula of this.peninsulas) {
+                if (gridX >= peninsula.gridX && 
+                    gridX < peninsula.gridX + peninsula.gridWidth &&
+                    gridY >= peninsula.gridY && 
+                    gridY < peninsula.gridY + peninsula.gridHeight) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        pixelToGrid(pixelPos) {
+            // Convert pixel position to grid position
+            const scaledTileSize = 16 * this.tileScale;
+            return pixelPos / scaledTileSize;
+        }
+
+        spawnDecorations() {
+
            // Spawn bones
            this.spawnBones();
            
@@ -1527,53 +1664,62 @@ class MainScene extends Phaser.Scene {
            this.spawnWallDecorations();
        }
 
-      spawnBones() {
-          // Create a group for bones if it doesn't exist
-          if (!this.bones) {
-              this.bones = this.add.group();
-          }
-          
-          // Array of bone sprite positions from Dungeon.png
-          const boneFrames = [68, 77];
-          
-          // Randomly select 3-5 bones to spawn
-          const boneCount = Phaser.Math.Between(1, 3);
-          
-          for (let i = 0; i < boneCount; i++) {
-              // Randomly select a bone frame
-              const randomFrame = Phaser.Utils.Array.GetRandom(boneFrames);
-              
-              // Generate random position that doesn't overlap with walls
-              let randomX, randomY, isValidPosition;
-              const maxAttempts = 20; // Prevent infinite loops
-              let attempts = 0;
-              
-              do {
-                  // Generate random position within playable area
-                  // X range: 40 to 760 (avoiding screen edges)
-                  // Y range: 40 to 560 (avoiding wall areas)
-                  randomX = Phaser.Math.Between(40, 760);
-                  randomY = Phaser.Math.Between(40, 560);
-                  
-                  // Check if position overlaps with any walls
-                  isValidPosition = !this.isPositionOnWall(randomX, randomY);
-                  attempts++;
-              } while (!isValidPosition && attempts < maxAttempts);
-              
-              // Only spawn bone if we found a valid position
-              if (isValidPosition) {
-                  // Create bone sprite
-                  const bone = this.add.sprite(randomX, randomY, 'dungeon', randomFrame);
-                  bone.setScale(this.tileScale);
-                  bone.setOrigin(0, 0);
-                  // Depth -8: above background (-10), above walls (-9), but below characters
-                  bone.setDepth(-8);
-                  
-                  // Add bone to group
-                  this.bones.add(bone);
-              }
-          }
-      }
+       spawnBones() {
+           // Create a group for bones if it doesn't exist
+           if (!this.bones) {
+               this.bones = this.add.group();
+           }
+           
+           // Array of bone sprite positions from Dungeon.png
+           const boneFrames = [68, 77];
+           const scaledTileSize = 16 * this.tileScale;
+           
+           // Randomly select 3-5 bones to spawn
+           const boneCount = Phaser.Math.Between(1, 3);
+           
+           for (let i = 0; i < boneCount; i++) {
+               // Randomly select a bone frame
+               const randomFrame = Phaser.Utils.Array.GetRandom(boneFrames);
+               
+               // Generate random position that doesn't overlap with walls or peninsulas
+               let randomX, randomY, isValidPosition;
+               const maxAttempts = 20; // Prevent infinite loops
+               let attempts = 0;
+               
+               do {
+                   // Generate random position within playable area
+                   // X range: 40 to 760 (avoiding screen edges)
+                   // Y range: 40 to 560 (avoiding wall areas)
+                   randomX = Phaser.Math.Between(40, 760);
+                   randomY = Phaser.Math.Between(40, 560);
+                   
+                   // Check if position overlaps with any walls or peninsulas
+                   isValidPosition = !this.isPositionOnWall(randomX, randomY);
+                   
+                   if (isValidPosition) {
+                       // Also check against peninsulas
+                       const gridX = Math.round(randomX / scaledTileSize);
+                       const gridY = Math.round(randomY / scaledTileSize);
+                       isValidPosition = !this.isPeninsulaTile(gridX, gridY);
+                   }
+                   
+                   attempts++;
+               } while (!isValidPosition && attempts < maxAttempts);
+               
+               // Only spawn bone if we found a valid position
+               if (isValidPosition) {
+                   // Create bone sprite
+                   const bone = this.add.sprite(randomX, randomY, 'dungeon', randomFrame);
+                   bone.setScale(this.tileScale);
+                   bone.setOrigin(0, 0);
+                   // Depth -8: above background (-10), above walls (-9), but below characters
+                   bone.setDepth(-8);
+                   
+                   // Add bone to group
+                   this.bones.add(bone);
+               }
+           }
+       }
 
        spawnWallDecorations() {
            // Create wall decorations group if it doesn't exist
@@ -1659,71 +1805,78 @@ class MainScene extends Phaser.Scene {
          return false;
      }
 
-     spawnEnemy(type = enemyTypes.ORC) {
-         // Create an enemy at a random position, maintaining minimum distance from player
-         const MIN_SPAWN_DISTANCE = 200; // Minimum distance from player
-         let randomX, randomY, distanceFromPlayer;
+      spawnEnemy(type = enemyTypes.ORC) {
+          // Create an enemy at a random position, maintaining minimum distance from player
+          const MIN_SPAWN_DISTANCE = 200; // Minimum distance from player
+          let randomX, randomY, distanceFromPlayer;
+          const scaledTileSize = 16 * this.tileScale;
 
-         // Keep generating random positions until we find one far enough from the player
-         do {
-             randomX = Phaser.Math.Between(50, 750);
-             randomY = Phaser.Math.Between(50, 550);
-             distanceFromPlayer = Phaser.Math.Distance.Between(
-                 randomX, randomY,
-                 this.player.x, this.player.y
-             );
-         } while (distanceFromPlayer < MIN_SPAWN_DISTANCE);
+          // Keep generating random positions until we find one far enough from the player and not on a peninsula
+          do {
+              randomX = Phaser.Math.Between(50, 750);
+              randomY = Phaser.Math.Between(50, 550);
+              distanceFromPlayer = Phaser.Math.Distance.Between(
+                  randomX, randomY,
+                  this.player.x, this.player.y
+              );
 
-          // Get configuration for this enemy type
-          const config = enemyConfigs[type];
-          const enemy = this.add.sprite(randomX, randomY, config.assetKey, 0);
-          enemy.setScale(3);
-          enemy.setDepth(5); // Enemies render on top of player by default
-          enemy.setRotation(0); // Ensure rotation is reset to normal
-          enemy.type = type; // Store the enemy type for later reference
+              // Check if position overlaps with any peninsula
+              const gridX = Math.round(randomX / scaledTileSize);
+              const gridY = Math.round(randomY / scaledTileSize);
+              const onPeninsula = this.isPeninsulaTile(gridX, gridY);
 
-          // Play the appropriate stand animation based on enemy type
-          enemy.play(`${type.toLowerCase()}_stand`);
+          } while (distanceFromPlayer < MIN_SPAWN_DISTANCE || onPeninsula);
 
-           this.physics.add.existing(enemy);
-           enemy.body.setCollideWorldBounds(false);
-           enemy.body.setSize(20.4, 19.95, true);
-           enemy.body.setOffset(40, 38);
+           // Get configuration for this enemy type
+           const config = enemyConfigs[type];
+           const enemy = this.add.sprite(randomX, randomY, config.assetKey, 0);
+           enemy.setScale(3);
+           enemy.setDepth(5); // Enemies render on top of player by default
+           enemy.setRotation(0); // Ensure rotation is reset to normal
+           enemy.type = type; // Store the enemy type for later reference
 
-           // Initialize enemy-specific properties
-             enemy.isMoving = false;
-             enemy.direction = { x: 0, y: 0 };
-             enemy.lastEdgeHitTime = 0;
-             enemy.lastHorizontalDirection = 'right';
-             enemy.isDead = false;
-             enemy.isAxeSwinging = false; // Track if enemy is currently attacking
-              enemy.hasRecentlyAttacked = false;
-              enemy.isAttacking = false; // Track if wizard is currently attacking
-              enemy.health = config.health; // Initialize health from config
-              enemy.lastHitTime = 0; // Track when enemy was last hit by player
-              enemy.turnAroundCheckTimer = null; // Timer for sneak-up detection
-              enemy.detectionSideOnCollision = null; // Track which side player was on at collision
-           
-           // Werewolf-specific properties
-           if (type === enemyTypes.WEREWOLF) {
-               enemy.hasDetectedPlayer = false;  // Track if player has been spotted
-               enemy.huntSpeed = this.WEREWOLF_PATROL_SPEED; // Current movement speed
-           }
+           // Play the appropriate stand animation based on enemy type
+           enemy.play(`${type.toLowerCase()}_stand`);
 
-          // Add enemy to group
-          this.enemies.add(enemy);
+            this.physics.add.existing(enemy);
+            enemy.body.setCollideWorldBounds(false);
+            enemy.body.setSize(20.4, 19.95, true);
+            enemy.body.setOffset(40, 38);
 
-          // Start the enemy behavior cycle
-          this.scheduleEnemyBehaviorChange(enemy);
+            // Initialize enemy-specific properties
+              enemy.isMoving = false;
+              enemy.direction = { x: 0, y: 0 };
+              enemy.lastEdgeHitTime = 0;
+              enemy.lastHorizontalDirection = 'right';
+              enemy.isDead = false;
+              enemy.isAxeSwinging = false; // Track if enemy is currently attacking
+               enemy.hasRecentlyAttacked = false;
+               enemy.isAttacking = false; // Track if wizard is currently attacking
+               enemy.health = config.health; // Initialize health from config
+               enemy.lastHitTime = 0; // Track when enemy was last hit by player
+               enemy.turnAroundCheckTimer = null; // Timer for sneak-up detection
+               enemy.detectionSideOnCollision = null; // Track which side player was on at collision
+            
+            // Werewolf-specific properties
+            if (type === enemyTypes.WEREWOLF) {
+                enemy.hasDetectedPlayer = false;  // Track if player has been spotted
+                enemy.huntSpeed = this.WEREWOLF_PATROL_SPEED; // Current movement speed
+            }
 
-          // If this is a wizard, schedule fireball attacks
-           if (type === enemyTypes.WIZARD) {
-               enemy.lastAlignedAttackTime = 0;  // Track cooldown for direct attacks
-               enemy.alignmentCheckTime = 0;    // Track last alignment check time
-               this.scheduleWizardAttack(enemy);
-           }
+           // Add enemy to group
+           this.enemies.add(enemy);
 
-      }
+           // Start the enemy behavior cycle
+           this.scheduleEnemyBehaviorChange(enemy);
+
+           // If this is a wizard, schedule fireball attacks
+            if (type === enemyTypes.WIZARD) {
+                enemy.lastAlignedAttackTime = 0;  // Track cooldown for direct attacks
+                enemy.alignmentCheckTime = 0;    // Track last alignment check time
+                this.scheduleWizardAttack(enemy);
+            }
+
+       }
 
 
      spawnFireball(wizard) {
