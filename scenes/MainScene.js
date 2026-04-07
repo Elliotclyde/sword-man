@@ -63,7 +63,7 @@ class MainScene extends Phaser.Scene {
                   enemies: [
                       { type: enemyTypes.ORC, count: 1 },
                   ],
-                  potions: 1,
+                  potions: 0,
                   playerStartX: 100, 
                   playerStartY: 100 
               },
@@ -72,7 +72,7 @@ class MainScene extends Phaser.Scene {
                   enemies: [
                       { type: enemyTypes.ORC, count: 5}
                   ],
-                  potions: 2,
+                  potions: 1,
                   playerStartX: 600, 
                   playerStartY: 500 
               },
@@ -82,7 +82,7 @@ class MainScene extends Phaser.Scene {
                       { type: enemyTypes.ORC, count: 5 },
                       { type: enemyTypes.WIZARD, count: 1 }
                   ],
-                  potions: 2,
+                  potions: 1,
                   playerStartX: 100, 
                   playerStartY: 100 
               },
@@ -91,7 +91,7 @@ class MainScene extends Phaser.Scene {
                   enemies: [
                       { type: enemyTypes.ARMOREDORC, count: 2 },
                   ],
-                  potions: 1,
+                  potions: 0,
                   playerStartX: 600, 
                   playerStartY: 100 
               },
@@ -665,19 +665,41 @@ class MainScene extends Phaser.Scene {
          }
          this.fireballs = this.add.group();
 
-         // Remove all potions
-         if (this.potions) {
-             const potionsToDestroy = [...this.potions.children.entries];
-             potionsToDestroy.forEach(potion => {
-                 if (potion && !potion.destroyed) {
-                     potion.destroy();
-                 }
-             });
-             this.potions.clear();
-         }
-         this.potions = this.physics.add.group();
+          // Remove all potions
+          if (this.potions) {
+              const potionsToDestroy = [...this.potions.children.entries];
+              potionsToDestroy.forEach(potion => {
+                  if (potion && !potion.destroyed) {
+                      potion.destroy();
+                  }
+              });
+              this.potions.clear();
+          }
+          this.potions = this.physics.add.group();
 
-           // Spawn new enemies based on current level configuration
+           // Remove all bones
+           if (this.bones) {
+               const bonesToDestroy = [...this.bones.children.entries];
+               bonesToDestroy.forEach(bone => {
+                   if (bone && !bone.destroyed) {
+                       bone.destroy();
+                   }
+               });
+               this.bones.clear();
+           }
+
+             // Remove all wall decorations (includes torches)
+             if (this.wallDecorations) {
+                 const wallDecorationsToDestroy = [...this.wallDecorations.children.entries];
+                 wallDecorationsToDestroy.forEach(decoration => {
+                     if (decoration && !decoration.destroyed) {
+                         decoration.destroy();
+                     }
+                 });
+                 this.wallDecorations.clear();
+             }
+
+              // Spawn new enemies based on current level configuration
            const levelConfig = this.levels[this.currentLevelIndex];
            const allEnemies = [];
            
@@ -687,13 +709,16 @@ class MainScene extends Phaser.Scene {
                    allEnemies.push(enemySpec.type);
                }
            });
-           
-           // Spawn enemies
-           allEnemies.forEach((enemyType) => {
-               this.spawnEnemy(enemyType);
-           });
+            
+            // Spawn enemies
+            allEnemies.forEach((enemyType) => {
+                this.spawnEnemy(enemyType);
+            });
 
-          // Track last horizontal direction (default to right)
+             // Spawn decorative elements on the map
+             this.spawnDecorations();
+
+           // Track last horizontal direction (default to right)
           this.lastHorizontalDirection = 'right';
           this.isPlayerSwinging = false; // Track if player is currently swinging sword
           this.isDashing = false; // Track if player is currently dashing
@@ -728,7 +753,19 @@ class MainScene extends Phaser.Scene {
            }
            this.playerPotionCollider = this.physics.add.overlap(this.player, this.potions, this.handlePotionPickup, null, this);
 
-     // Create health bar sprite display (health value - underneath)
+           // Set up collision detection for player colliding with walls
+           if (this.playerWallCollider) {
+               this.physics.world.removeCollider(this.playerWallCollider);
+           }
+           this.playerWallCollider = this.physics.add.collider(this.player, this.walls);
+
+            // Set up collision detection for enemies colliding with walls
+            if (this.enemyWallCollider) {
+                this.physics.world.removeCollider(this.enemyWallCollider);
+            }
+            this.enemyWallCollider = this.physics.add.collider(this.enemies, this.walls, this.handleEnemyWallCollision, null, this);
+
+      // Create health bar sprite display (health value - underneath)
     this.healthValueBar = this.add.sprite(750, 550, 'healthbars', 1);
     this.healthValueBar.setScale(3); // Scale to 3x size
     this.healthValueBar.setOrigin(1, 1); // Align to bottom right
@@ -871,13 +908,37 @@ class MainScene extends Phaser.Scene {
         fireball.destroy();
 
          // Check for game over
-         if (player.health <= 0) {
-             player.alpha = 1;
-             this.gameOver();
-         }
-     }
+          if (player.health <= 0) {
+              player.alpha = 1;
+              this.gameOver();
+          }
+      }
 
-      winGame() {
+       handleEnemyWallCollision(enemy, wall) {
+           const currentTime = this.time.now;
+           const timeSinceLastEdgeHit = currentTime - enemy.lastEdgeHitTime;
+
+           // Only allow direction reversal if more than 50ms has passed since last edge hit
+           if (timeSinceLastEdgeHit > 50) {
+               // Detect which wall was hit based on position
+               if (wall.x < 100) {
+                   // Left wall - reverse to move rightward
+                   enemy.direction.x = Math.abs(enemy.direction.x);
+               } else if (wall.x > 700) {
+                   // Right wall - reverse to move leftward
+                   enemy.direction.x = -Math.abs(enemy.direction.x);
+               } else if (wall.y < 100) {
+                   // Top wall - reverse to move downward
+                   enemy.direction.y = Math.abs(enemy.direction.y);
+               } else if (wall.y > 500) {
+                   // Bottom wall - reverse to move upward
+                   enemy.direction.y = -Math.abs(enemy.direction.y);
+               }
+               enemy.lastEdgeHitTime = currentTime;
+           }
+       }
+
+       winGame() {
      if(this.gameIsOver){
        return;
      }
@@ -1006,15 +1067,16 @@ class MainScene extends Phaser.Scene {
         this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
         this.escapeKey.on('down', () => this.togglePause());
 
-        // Create a 20x20 grid of random dungeon tiles
-        const tileSize = 16; // Each tile is 16x16
-        const gridWidth = 20;
-        const gridHeight = 20;
-        const scaleX = 800 / (gridWidth * tileSize); // Scale to fit the game width
-        const scaleY = 600 / (gridHeight * tileSize); // Scale to fit the game height
-        const scale = Math.max(scaleX, scaleY); // Use the larger scale to fill the screen
+         // Create a 20x20 grid of random dungeon tiles
+         const tileSize = 16; // Each tile is 16x16
+         const gridWidth = 20;
+         const gridHeight = 20;
+         const scaleX = 800 / (gridWidth * tileSize); // Scale to fit the game width
+         const scaleY = 600 / (gridHeight * tileSize); // Scale to fit the game height
+         const scale = Math.max(scaleX, scaleY); // Use the larger scale to fill the screen
+         this.tileScale = scale; // Store scale as instance variable for later use
 
-        for (let y = 0; y < gridHeight; y++) {
+         for (let y = 0; y < gridHeight; y++) {
             for (let x = 0; x < gridWidth; x++) {
                 // Pick a random frame from the 1x1 to 4x4 area (frames 0-15)
                 const randomFrame = Phaser.Math.Between(6, 9);
@@ -1024,6 +1086,9 @@ class MainScene extends Phaser.Scene {
                 tile.setDepth(-10); // Render tiles under everything
             }
         }
+
+        // Spawn walls on top and bottom rows
+        this.spawnWalls(tileSize, gridWidth, gridHeight, scale);
 
         // Create game objects here
         // Create standing animation (frames 0-5 from the top row)
@@ -1342,7 +1407,259 @@ class MainScene extends Phaser.Scene {
          }
      }
 
-    spawnEnemy(type = enemyTypes.ORC) {
+    spawnWalls(tileSize, gridWidth, gridHeight, scale) {
+         // Create a physics group for walls
+         if (!this.walls) {
+             this.walls = this.physics.add.staticGroup();
+         } else {
+             // Clear existing walls if any
+             this.walls.children.entries.forEach(wall => wall.destroy());
+             this.walls.clear();
+         }
+
+         // Top wall frames (0-5) and bottom wall frames (40-44)
+         const topWallFrames = [1, 2, 3, 4];
+         const bottomWallFrames = [41, 42, 43, 44];
+         // Left side wall frames (random) and right side wall frames (random)
+         const leftWallFrames = [10, 20, 30];
+         const rightWallFrames = [15, 25, 35];
+         const scaledTileSize = tileSize * scale;
+
+         // Add top row walls (y = 0)
+         for (let x = 0; x < gridWidth; x++) {
+             const randomFrame = Phaser.Utils.Array.GetRandom(topWallFrames);
+             const wall = this.add.sprite(x * scaledTileSize, 0, 'dungeon', randomFrame);
+             wall.setScale(scale);
+             wall.setOrigin(0, 0);
+             wall.setDepth(-9); // Just above background tiles
+             this.walls.add(wall);
+             
+             // Add physics body for top walls with collision at the top edge
+             this.physics.add.existing(wall, true); // true = isStatic
+             // Set body size to be thin at the top for collision detection
+             // Height is small so collision only occurs at top edge
+             wall.body.setSize(scaledTileSize, scaledTileSize * 0.3);
+             // Offset so the collision box is at the top of the sprite
+             wall.body.setOffset(0, 0);
+         }
+
+         // Add bottom row walls at the screen bottom (excluding corner positions for left and right)
+         const bottomY = 600 - scaledTileSize;
+         for (let x = 1; x < gridWidth - 1; x++) {
+             const randomFrame = Phaser.Utils.Array.GetRandom(bottomWallFrames);
+             const wall = this.add.sprite(x * scaledTileSize, bottomY, 'dungeon', randomFrame);
+             wall.setScale(scale);
+             wall.setOrigin(0, 0);
+             wall.setDepth(-9); // Just above background tiles
+             this.walls.add(wall);
+             
+             // Add physics body for bottom walls with collision at the top edge
+             this.physics.add.existing(wall, true); // true = isStatic
+             // Set body size and offset so collision happens at the top of the wall
+             wall.body.setSize(scaledTileSize, scaledTileSize * 0.3);
+             // Offset so collision box is at the top of the sprite
+             wall.body.setOffset(0, 0);
+         }
+
+         // Add left column walls (x = 0)
+         for (let y = 0; y < gridHeight - 1; y++) {
+             // Use random sprites for all positions in the left column
+             const randomFrame = Phaser.Utils.Array.GetRandom(leftWallFrames);
+             const wall = this.add.sprite(0, y * scaledTileSize, 'dungeon', randomFrame);
+             wall.setScale(scale);
+             wall.setOrigin(0, 0);
+             wall.setDepth(-9); // Just above background tiles
+             this.walls.add(wall);
+             
+             // Add physics body for left walls with full collision
+             this.physics.add.existing(wall, true); // true = isStatic
+             // Set body size to full tile size for complete collision coverage
+             wall.body.setSize(scaledTileSize, scaledTileSize);
+             // No offset - collision covers entire tile
+             wall.body.setOffset(0, 0);
+         }
+         
+         // Add bottom-left corner sprite (frame 40)
+         const wall = this.add.sprite(0, 600 - scaledTileSize, 'dungeon', 40);
+         wall.setScale(scale);
+         wall.setOrigin(0, 0);
+         wall.setDepth(-9); // Just above background tiles
+         this.walls.add(wall);
+         this.physics.add.existing(wall, true); // true = isStatic
+         wall.body.setSize(scaledTileSize, scaledTileSize);
+         wall.body.setOffset(0, 0);
+
+         // Add right column walls (x = rightmost position)
+         const rightX = 800 - scaledTileSize;
+         for (let y = 0; y < gridHeight - 1; y++) {
+             // Use random sprites for all positions in the right column
+             const randomFrame = Phaser.Utils.Array.GetRandom(rightWallFrames);
+             const wall = this.add.sprite(rightX, y * scaledTileSize, 'dungeon', randomFrame);
+             wall.setScale(scale);
+             wall.setOrigin(0, 0);
+             wall.setDepth(-9); // Just above background tiles
+             this.walls.add(wall);
+             
+             // Add physics body for right walls with full collision
+             this.physics.add.existing(wall, true); // true = isStatic
+             // Set body size to full tile size for complete collision coverage
+             wall.body.setSize(scaledTileSize, scaledTileSize);
+             // No offset - collision covers entire tile
+             wall.body.setOffset(0, 0);
+         }
+         
+         // Add bottom-right corner sprite (frame 45)
+         const rightWall = this.add.sprite(rightX, 600 - scaledTileSize, 'dungeon', 45);
+         rightWall.setScale(scale);
+         rightWall.setOrigin(0, 0);
+         rightWall.setDepth(-9); // Just above background tiles
+         this.walls.add(rightWall);
+         this.physics.add.existing(rightWall, true); // true = isStatic
+         rightWall.body.setSize(scaledTileSize, scaledTileSize);
+         rightWall.body.setOffset(0, 0);
+      }
+
+       spawnDecorations() {
+           // Spawn bones
+           this.spawnBones();
+           
+           // Spawn wall decorations (includes torches and other decorations)
+           this.spawnWallDecorations();
+       }
+
+      spawnBones() {
+          // Create a group for bones if it doesn't exist
+          if (!this.bones) {
+              this.bones = this.add.group();
+          }
+          
+          // Array of bone sprite positions from Dungeon.png
+          const boneFrames = [68, 77];
+          
+          // Randomly select 3-5 bones to spawn
+          const boneCount = Phaser.Math.Between(1, 3);
+          
+          for (let i = 0; i < boneCount; i++) {
+              // Randomly select a bone frame
+              const randomFrame = Phaser.Utils.Array.GetRandom(boneFrames);
+              
+              // Generate random position that doesn't overlap with walls
+              let randomX, randomY, isValidPosition;
+              const maxAttempts = 20; // Prevent infinite loops
+              let attempts = 0;
+              
+              do {
+                  // Generate random position within playable area
+                  // X range: 40 to 760 (avoiding screen edges)
+                  // Y range: 40 to 560 (avoiding wall areas)
+                  randomX = Phaser.Math.Between(40, 760);
+                  randomY = Phaser.Math.Between(40, 560);
+                  
+                  // Check if position overlaps with any walls
+                  isValidPosition = !this.isPositionOnWall(randomX, randomY);
+                  attempts++;
+              } while (!isValidPosition && attempts < maxAttempts);
+              
+              // Only spawn bone if we found a valid position
+              if (isValidPosition) {
+                  // Create bone sprite
+                  const bone = this.add.sprite(randomX, randomY, 'dungeon', randomFrame);
+                  bone.setScale(this.tileScale);
+                  bone.setOrigin(0, 0);
+                  // Depth -8: above background (-10), above walls (-9), but below characters
+                  bone.setDepth(-8);
+                  
+                  // Add bone to group
+                  this.bones.add(bone);
+              }
+          }
+      }
+
+       spawnWallDecorations() {
+           // Create wall decorations group if it doesn't exist
+           if (!this.wallDecorations) {
+               this.wallDecorations = this.add.group();
+           }
+           
+           // Wall decoration sprite frames including torches
+           // Frame 90 is torch, frames 74, 75, 76 are other wall decorations
+           const wallDecorationFrames = [90, 74, 75, 76];
+           
+           // Randomly select 2-5 total wall decorations to spawn (torches + others)
+           const decorationCount = Phaser.Math.Between(2, 5);
+           const scaledTileSize = 16 * this.tileScale;
+           
+           // Keep track of already-used X positions to avoid duplicates
+           // Use tiles 1-18 (exclude leftmost tile 0 and rightmost tile 19)
+           const usedXPositions = new Set();
+           const availableTiles = [];
+           for (let i = 1; i < 19; i++) {
+               availableTiles.push(i);
+           }
+           
+           for (let i = 0; i < decorationCount && availableTiles.length > 0; i++) {
+               // Select a random available tile
+               const randomIndex = Phaser.Math.Between(0, availableTiles.length - 1);
+               const randomGridX = availableTiles[randomIndex];
+               
+               // Remove this tile from available tiles to prevent duplicates
+               availableTiles.splice(randomIndex, 1);
+               
+               // Randomly select a wall decoration frame
+               const randomFrame = Phaser.Utils.Array.GetRandom(wallDecorationFrames);
+               
+               // Calculate world position
+               const worldX = randomGridX * scaledTileSize;
+               const worldY = 0;
+               
+               // Create wall decoration sprite
+               const decoration = this.add.sprite(worldX, worldY, 'dungeon', randomFrame);
+               decoration.setScale(this.tileScale);
+               decoration.setOrigin(0, 0);
+               decoration.setDepth(-8);  // Same depth as bones
+               
+               // Add to wall decorations group
+               this.wallDecorations.add(decoration);
+           }
+       }
+
+      isPositionOnWall(x, y) {
+         // Check if the given position overlaps with any wall
+         // Define wall boundaries based on screen dimensions and scaled tile size
+         const scaledTileSize = 16 * this.tileScale;
+         const bottomWallY = 600 - scaledTileSize;
+         const rightWallX = 800 - scaledTileSize;
+         
+         // Tolerance for collision detection (width/height of a tile)
+         const tolerance = scaledTileSize;
+         
+         // Check top wall (y = 0, spans entire width)
+         if (y < tolerance) {
+             return true;
+         }
+         
+         // Check bottom wall (y = bottomWallY, spans most of width except corners)
+         if (y > bottomWallY - tolerance && y < bottomWallY + tolerance) {
+             // Bottom wall doesn't include the first and last columns
+             if (x > tolerance && x < rightWallX - tolerance) {
+                 return true;
+             }
+         }
+         
+         // Check left wall (x = 0, spans entire height except bottom)
+         if (x < tolerance) {
+             return true;
+         }
+         
+         // Check right wall (x = rightWallX, spans entire height except bottom)
+         if (x > rightWallX - tolerance) {
+             return true;
+         }
+         
+         return false;
+     }
+
+     spawnEnemy(type = enemyTypes.ORC) {
          // Create an enemy at a random position, maintaining minimum distance from player
          const MIN_SPAWN_DISTANCE = 200; // Minimum distance from player
          let randomX, randomY, distanceFromPlayer;
