@@ -1559,11 +1559,12 @@ class MainScene extends Phaser.Scene {
                 const gridY = Phaser.Math.Between(minGridY, maxGridY);
 
                 // Determine grid X based on side
+                // Peninsulas should extend INTO the playable area from the edges
                 let gridX;
                 if (side === 'left') {
-                    gridX = -peninsulaWidth; // Extends left from x=0
+                    gridX = 0; // Starts at left wall, extends rightward into playable area
                 } else {
-                    gridX = gridWidth; // Extends right from x=800
+                    gridX = gridWidth - peninsulaWidth; // Starts before right wall, extends rightward to edge
                 }
 
                 // Store peninsula metadata
