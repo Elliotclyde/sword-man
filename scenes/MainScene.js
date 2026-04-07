@@ -1808,7 +1808,7 @@ class MainScene extends Phaser.Scene {
       spawnEnemy(type = enemyTypes.ORC) {
           // Create an enemy at a random position, maintaining minimum distance from player
           const MIN_SPAWN_DISTANCE = 200; // Minimum distance from player
-          let randomX, randomY, distanceFromPlayer;
+          let randomX, randomY, distanceFromPlayer, onPeninsula;
           const scaledTileSize = 16 * this.tileScale;
 
           // Keep generating random positions until we find one far enough from the player and not on a peninsula
@@ -1823,7 +1823,7 @@ class MainScene extends Phaser.Scene {
               // Check if position overlaps with any peninsula
               const gridX = Math.round(randomX / scaledTileSize);
               const gridY = Math.round(randomY / scaledTileSize);
-              const onPeninsula = this.isPeninsulaTile(gridX, gridY);
+              onPeninsula = this.isPeninsulaTile(gridX, gridY);
 
           } while (distanceFromPlayer < MIN_SPAWN_DISTANCE || onPeninsula);
 
