@@ -1652,28 +1652,36 @@ class MainScene extends Phaser.Scene {
                          const pixelX = currentGridX * scaledTileSize;
                          const pixelY = currentGridY * scaledTileSize;
 
-                         // Determine frame based on position
-                         let frame;
-                         const isBottom = (currentGridY === gridY + peninsulaHeight - 1);
-                         const isRight = (tx === peninsulaWidth - 1);
-                         const isLeft = (tx === 0);
+                          // Determine frame based on position
+                          let frame;
+                          const isBottom = (currentGridY === gridY + peninsulaHeight - 1);
+                          const isRight = (tx === peninsulaWidth - 1);
+                          const isLeft = (tx === 0);
+                          
+                          // Calculate center position of peninsula
+                          const centerX = gridX + Math.floor(peninsulaWidth / 2);
+                          const centerY = gridY + Math.floor(peninsulaHeight / 2);
+                          const isCenter = (currentGridX === centerX && currentGridY === centerY);
 
-                         if (isBottom) {
-                             // Bottom row uses bottom wall frames or corners
-                             if (isLeft && side === 'left') {
-                                 frame = 40; // Bottom-left corner for left peninsulas
-                             } else if (isRight && side === 'right') {
-                                 frame = 45; // Bottom-right corner for right peninsulas
-                             } else {
-                                 frame = Phaser.Utils.Array.GetRandom(bottomWallFrames);
-                             }
-                         } else if (side === 'left') {
-                             // Left peninsulas use left wall frames
-                             frame = Phaser.Utils.Array.GetRandom(leftWallFrames);
-                         } else {
-                             // Right peninsulas use right wall frames
-                             frame = Phaser.Utils.Array.GetRandom(rightWallFrames);
-                         }
+                          if (isCenter) {
+                              // Center sprite is always frame 78
+                              frame = 78;
+                          } else if (isBottom) {
+                              // Bottom row uses bottom wall frames or corners
+                              if (isLeft && side === 'left') {
+                                  frame = 40; // Bottom-left corner for left peninsulas
+                              } else if (isRight && side === 'right') {
+                                  frame = 45; // Bottom-right corner for right peninsulas
+                              } else {
+                                  frame = Phaser.Utils.Array.GetRandom(bottomWallFrames);
+                              }
+                          } else if (side === 'left') {
+                              // Left peninsulas use left wall frames
+                              frame = Phaser.Utils.Array.GetRandom(leftWallFrames);
+                          } else {
+                              // Right peninsulas use right wall frames
+                              frame = Phaser.Utils.Array.GetRandom(rightWallFrames);
+                          }
 
                          // Create wall sprite
                          const wall = this.add.sprite(pixelX, pixelY, 'dungeon', frame);
