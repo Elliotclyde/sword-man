@@ -697,10 +697,16 @@ class MainScene extends Phaser.Scene {
                      }
                  });
                  this.wallDecorations.clear();
-             }
+              }
 
-              // Spawn new enemies based on current level configuration
-           const levelConfig = this.levels[this.currentLevelIndex];
+               // Regenerate peninsulas for this level
+               if (this.wallGenerationParams) {
+                   const { tileSize, gridWidth, gridHeight, scale } = this.wallGenerationParams;
+                   this.generatePeninsulas(tileSize, gridWidth, gridHeight, scale);
+               }
+
+               // Spawn new enemies based on current level configuration
+            const levelConfig = this.levels[this.currentLevelIndex];
            const allEnemies = [];
            
            // Collect all enemies to be spawned
@@ -1067,15 +1073,18 @@ class MainScene extends Phaser.Scene {
          this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
          this.escapeKey.on('down', () => this.togglePause());
 
-          // Create a 20x20 grid of random dungeon tiles
-          const tileSize = 16; // Each tile is 16x16
-          const gridWidth = 20;
-          const gridHeight = 20;
-          const scaleX = 800 / (gridWidth * tileSize); // Scale to fit the game width
-          const scaleY = 600 / (gridHeight * tileSize); // Scale to fit the game height
-          const scale = Math.max(scaleX, scaleY); // Use the larger scale to fill the screen
-          this.tileScale = scale; // Store scale as instance variable for later use
-          this.peninsulas = []; // Track all peninsulas for collision detection
+           // Create a 20x20 grid of random dungeon tiles
+           const tileSize = 16; // Each tile is 16x16
+           const gridWidth = 20;
+           const gridHeight = 20;
+           const scaleX = 800 / (gridWidth * tileSize); // Scale to fit the game width
+           const scaleY = 600 / (gridHeight * tileSize); // Scale to fit the game height
+           const scale = Math.max(scaleX, scaleY); // Use the larger scale to fill the screen
+           
+           // Store wall generation parameters as instance variables for later use
+           this.tileScale = scale; // Store scale as instance variable for later use
+           this.wallGenerationParams = { tileSize, gridWidth, gridHeight, scale };
+           this.peninsulas = []; // Track all peninsulas for collision detection
 
          for (let y = 0; y < gridHeight; y++) {
             for (let x = 0; x < gridWidth; x++) {
@@ -1524,6 +1533,23 @@ class MainScene extends Phaser.Scene {
         }
 
         generatePeninsulas(tileSize, gridWidth, gridHeight, scale) {
+            // Clear any existing peninsula wall sprites from the walls group
+            if (this.peninsulas && this.peninsulas.length > 0) {
+                // Destroy all wall sprites that belong to peninsulas
+                this.peninsulas.forEach(peninsula => {
+                    peninsula.tiles.forEach(tile => {
+                        // Find and destroy the wall sprite at this position
+                        const wallsToRemove = this.walls.children.entries.filter(wall => {
+                            return Math.abs(wall.x - tile.pixelX) < 1 && Math.abs(wall.y - tile.pixelY) < 1;
+                        });
+                        wallsToRemove.forEach(wall => {
+                            this.walls.remove(wall);
+                            wall.destroy();
+                        });
+                    });
+                });
+            }
+
             // Clear any existing peninsula data
             this.peninsulas = [];
 
