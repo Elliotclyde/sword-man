@@ -20,7 +20,8 @@ const enemyConfigs = {
         frameHeight: 100,
         attackAnimKey: 'orc_attack',
         canDamageOnTouch: true,
-        health: 1
+        health: 1,
+        defaultTurnBehaviour: true
     },
     [enemyTypes.WIZARD]: {
         assetKey: 'wizard',
@@ -28,7 +29,8 @@ const enemyConfigs = {
         frameHeight: 100,
         attackAnimKey: 'wizard_attack',
         canDamageOnTouch: false,
-        health: 1
+        health: 1,
+        defaultTurnBehaviour: false
     },
     [enemyTypes.WEREWOLF]: {
         assetKey: 'werewolf',
@@ -36,7 +38,8 @@ const enemyConfigs = {
         frameHeight: 100,
         attackAnimKey: 'werewolf_attack',
         canDamageOnTouch: true,
-        health: 1
+        health: 1,
+        defaultTurnBehaviour: false
     },
      [enemyTypes.ARMOREDORC]: {
          assetKey: 'armoredorc',
@@ -44,7 +47,8 @@ const enemyConfigs = {
          frameHeight: 100,
          attackAnimKey: 'armoredorc_attack',
          canDamageOnTouch: true,
-         health: 3
+         health: 3,
+         defaultTurnBehaviour: true
      }
 };
 
@@ -603,41 +607,46 @@ class MainScene extends Phaser.Scene {
         if (this.enemies) {
              // Method 1: Destroy each enemy individually with special handling for dying enemies
              const enemiesToDestroy = [...this.enemies.children.entries]; // Create a copy to avoid iteration issues
-             enemiesToDestroy.forEach(enemy => {
-                 if (enemy && !enemy.destroyed) {
-                     // Clear any timers associated with the enemy
-                     if (enemy.behaviorTimer) {
-                         enemy.behaviorTimer.remove(false);
-                     }
-
-                     // Clear wizard attack timer if it exists
-                     if (enemy.attackTimer) {
-                         enemy.attackTimer.remove(false);
-                     }
-
-                     // If enemy has an ongoing tween (fade out), complete it immediately
-                      if (enemy.fadeTween) {
-                          enemy.fadeTween.complete();
-                          enemy.fadeTween = null;
+              enemiesToDestroy.forEach(enemy => {
+                  if (enemy && !enemy.destroyed) {
+                      // Clear any timers associated with the enemy
+                      if (enemy.behaviorTimer) {
+                          enemy.behaviorTimer.remove(false);
                       }
 
-                      // Remove all animation completion listeners (use enemy type to get correct animation keys)
-                      const typePrefix = enemy.type ? enemy.type.toLowerCase() : 'orc';
-                      enemy.off(`animationcomplete-${typePrefix}_die`);
-                      enemy.off(`animationcomplete-${typePrefix}_attack`);
-
-                      // Stop any current animations
-                      if (enemy.anims) {
-                          enemy.anims.stop();
+                      // Clear wizard attack timer if it exists
+                      if (enemy.attackTimer) {
+                          enemy.attackTimer.remove(false);
                       }
 
-                      // Reset alpha in case it was modified by a tween
-                      enemy.alpha = 1;
+                      // Clear turn-around check timer if it exists
+                      if (enemy.turnAroundCheckTimer) {
+                          enemy.turnAroundCheckTimer.remove(false);
+                      }
 
-                      // Force destroy the enemy
-                      enemy.destroy();
-                  }
-              });
+                      // If enemy has an ongoing tween (fade out), complete it immediately
+                       if (enemy.fadeTween) {
+                           enemy.fadeTween.complete();
+                           enemy.fadeTween = null;
+                       }
+
+                       // Remove all animation completion listeners (use enemy type to get correct animation keys)
+                       const typePrefix = enemy.type ? enemy.type.toLowerCase() : 'orc';
+                       enemy.off(`animationcomplete-${typePrefix}_die`);
+                       enemy.off(`animationcomplete-${typePrefix}_attack`);
+
+                       // Stop any current animations
+                       if (enemy.anims) {
+                           enemy.anims.stop();
+                       }
+
+                       // Reset alpha in case it was modified by a tween
+                       enemy.alpha = 1;
+
+                       // Force destroy the enemy
+                       enemy.destroy();
+                   }
+               });
 
              // Method 2: Clear the group
              this.enemies.clear();
@@ -1364,17 +1373,19 @@ class MainScene extends Phaser.Scene {
            enemy.body.setSize(20.4, 19.95, true);
            enemy.body.setOffset(40, 38);
 
-          // Initialize enemy-specific properties
-            enemy.isMoving = false;
-            enemy.direction = { x: 0, y: 0 };
-            enemy.lastEdgeHitTime = 0;
-            enemy.lastHorizontalDirection = 'right';
-            enemy.isDead = false;
-            enemy.isAxeSwinging = false; // Track if enemy is currently attacking
-             enemy.hasRecentlyAttacked = false;
-             enemy.isAttacking = false; // Track if wizard is currently attacking
-             enemy.health = config.health; // Initialize health from config
-             enemy.lastHitTime = 0; // Track when enemy was last hit by player
+           // Initialize enemy-specific properties
+             enemy.isMoving = false;
+             enemy.direction = { x: 0, y: 0 };
+             enemy.lastEdgeHitTime = 0;
+             enemy.lastHorizontalDirection = 'right';
+             enemy.isDead = false;
+             enemy.isAxeSwinging = false; // Track if enemy is currently attacking
+              enemy.hasRecentlyAttacked = false;
+              enemy.isAttacking = false; // Track if wizard is currently attacking
+              enemy.health = config.health; // Initialize health from config
+              enemy.lastHitTime = 0; // Track when enemy was last hit by player
+              enemy.turnAroundCheckTimer = null; // Timer for sneak-up detection
+              enemy.detectionSideOnCollision = null; // Track which side player was on at collision
            
            // Werewolf-specific properties
            if (type === enemyTypes.WEREWOLF) {
@@ -2311,13 +2322,37 @@ class MainScene extends Phaser.Scene {
       }
 
        handlePlayerEnemyCollision(player, enemy) {
-         if (this.gameIsOver){
-           return;
-         }
+          if (this.gameIsOver){
+            return;
+          }
 
-            const enemyIsToTheLeft = enemy.x < player.x;
-            // Only trigger if player is currently swinging sword and enemy is not already dead
-            if (this.isPlayerSwinging && !enemy.isDead) {
+              const enemyIsToTheLeft = enemy.x < player.x;
+
+              // Check if enemy should have sneak-up turn-around behavior
+              const enemyConfig = enemyConfigs[enemy.type];
+              
+              if (enemyConfig.defaultTurnBehaviour && !enemy.isDead) {
+                  // Check if enemy is NOT currently facing the player
+                  const playerIsToTheLeft = player.x < enemy.x;
+                  const enemyFacingLeft = enemy.flipX;
+                  const enemyFacingPlayer = (playerIsToTheLeft === enemyFacingLeft);
+
+                  if (!enemyFacingPlayer) {
+                      // Only set up timer if one doesn't already exist
+                      if (!enemy.turnAroundCheckTimer) {
+                          // Enemy is not facing player - set up turn-around check
+                          // Store which side player was on
+                          enemy.detectionSideOnCollision = playerIsToTheLeft ? 'left' : 'right';
+
+                          // Set timer for 1 second to check if player is still on wrong side
+                          enemy.turnAroundCheckTimer = this.time.delayedCall(1000, () => {
+                              this.checkAndTurnEnemyAround(enemy);
+                          });
+                      }
+                  }
+              }
+             // Only trigger if player is currently swinging sword and enemy is not already dead
+             if (this.isPlayerSwinging && !enemy.isDead) {
                 // Check if enemy was recently hit (within sword animation duration of 600ms)
                 if (enemy.lastHitTime && this.time.now - enemy.lastHitTime < 600) {
                     // Enemy was already hit during this swing, don't hit again
@@ -2472,9 +2507,33 @@ class MainScene extends Phaser.Scene {
            }
 
          }
-       }
+        }
 
-        gameOver() {
+        checkAndTurnEnemyAround(enemy) {
+             // If enemy is destroyed or dead, don't do anything
+             if (!enemy || enemy.destroyed || enemy.isDead) {
+                 return;
+             }
+
+             // Determine which side the player is currently on
+             const playerCurrentlyToTheLeft = this.player.x < enemy.x;
+             const playerCurrentlySide = playerCurrentlyToTheLeft ? 'left' : 'right';
+
+             // Check if player is still on the same "wrong" side as detected
+             if (playerCurrentlySide === enemy.detectionSideOnCollision) {
+                 // Player is still on the wrong side - force enemy to turn around
+                 // Reverse the enemy's horizontal direction so the flip persists
+                 enemy.direction.x = -enemy.direction.x;
+                 // Also update lastHorizontalDirection to keep it consistent
+                 enemy.lastHorizontalDirection = enemy.lastHorizontalDirection === 'left' ? 'right' : 'left';
+             }
+
+             // Clear the stored detection side and timer reference
+             enemy.detectionSideOnCollision = null;
+             enemy.turnAroundCheckTimer = null;
+         }
+
+         gameOver() {
             if(this.gameIsOver){
                 return;
             }
