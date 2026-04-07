@@ -58,52 +58,58 @@ class MainScene extends Phaser.Scene {
                   level: 1, 
                   enemies: [
                       { type: enemyTypes.ORC, count: 1 },
-                  ], 
+                  ],
+                  potions: 1,
                   playerStartX: 100, 
                   playerStartY: 100 
               },
              { 
-                 level: 2, 
-                 enemies: [
-                     { type: enemyTypes.ORC, count: 5}
-                 ], 
-                 playerStartX: 600, 
-                 playerStartY: 500 
-             },
+                  level: 2, 
+                  enemies: [
+                      { type: enemyTypes.ORC, count: 5}
+                  ],
+                  potions: 2,
+                  playerStartX: 600, 
+                  playerStartY: 500 
+              },
              { 
-                 level: 3, 
-                 enemies: [
-                     { type: enemyTypes.ORC, count: 5 },
-                     { type: enemyTypes.WIZARD, count: 1 }
-                 ], 
-                 playerStartX: 100, 
-                 playerStartY: 100 
-             },
+                  level: 3, 
+                  enemies: [
+                      { type: enemyTypes.ORC, count: 5 },
+                      { type: enemyTypes.WIZARD, count: 1 }
+                  ],
+                  potions: 2,
+                  playerStartX: 100, 
+                  playerStartY: 100 
+              },
              { 
-                 level: 4, 
-                 enemies: [
-                     { type: enemyTypes.ARMOREDORC, count: 2 },
-                 ], 
-                 playerStartX: 600, 
-                 playerStartY: 100 
+                  level: 4, 
+                  enemies: [
+                      { type: enemyTypes.ARMOREDORC, count: 2 },
+                  ],
+                  potions: 1,
+                  playerStartX: 600, 
+                  playerStartY: 100 
+              },
+             {
+                  level: 5,
+                  enemies: [
+                      { type: enemyTypes.ORC, count: 5 },
+                      { type: enemyTypes.WEREWOLF, count: 2 }
+                  ],
+                  potions: 2,
+                  playerStartX: 100,
+                  playerStartY: 100
              },
              {
-                 level: 5,
-                 enemies: [
-                     { type: enemyTypes.ORC, count: 5 },
-                     { type: enemyTypes.WEREWOLF, count: 2 }
-                 ],
-                 playerStartX: 100,
-                 playerStartY: 100
-             },
-             {
-                 level: 6,
-                 enemies: [
-                     { type: enemyTypes.ARMOREDORC, count: 5 },
-                     { type: enemyTypes.WIZARD, count: 2 }
-                 ],
-                 playerStartX: 100,
-                 playerStartY: 100
+                  level: 6,
+                  enemies: [
+                      { type: enemyTypes.ARMOREDORC, count: 5 },
+                      { type: enemyTypes.WIZARD, count: 2 }
+                  ],
+                  potions: 2,
+                  playerStartX: 100,
+                  playerStartY: 100
              }
          ];
 
@@ -512,11 +518,14 @@ class MainScene extends Phaser.Scene {
           this.isFilterActive = false;
       }
 
-    // Idempotent initialization method that properly resets all game state
-    initializeLevel() {
+     // Idempotent initialization method that properly resets all game state
+     initializeLevel() {
 
-        // Reset game over flag
-        this.gameIsOver = false;
+         // Reset game over flag
+         this.gameIsOver = false;
+
+         // Stop any existing potion spawner
+         this.stopPotionSpawner();
 
         // Remove win/lose text if it exists
         if (this.resultText) {
@@ -647,13 +656,33 @@ class MainScene extends Phaser.Scene {
          }
          this.fireballs = this.add.group();
 
-         // Spawn new enemies based on current level configuration
-         const levelConfig = this.levels[this.currentLevelIndex];
-         levelConfig.enemies.forEach(enemySpec => {
-             for (let i = 0; i < enemySpec.count; i++) {
-                 this.spawnEnemy(enemySpec.type);
-             }
-         });
+         // Remove all potions
+         if (this.potions) {
+             const potionsToDestroy = [...this.potions.children.entries];
+             potionsToDestroy.forEach(potion => {
+                 if (potion && !potion.destroyed) {
+                     potion.destroy();
+                 }
+             });
+             this.potions.clear();
+         }
+         this.potions = this.physics.add.group();
+
+           // Spawn new enemies based on current level configuration
+           const levelConfig = this.levels[this.currentLevelIndex];
+           const allEnemies = [];
+           
+           // Collect all enemies to be spawned
+           levelConfig.enemies.forEach(enemySpec => {
+               for (let i = 0; i < enemySpec.count; i++) {
+                   allEnemies.push(enemySpec.type);
+               }
+           });
+           
+           // Spawn enemies
+           allEnemies.forEach((enemyType) => {
+               this.spawnEnemy(enemyType);
+           });
 
           // Track last horizontal direction (default to right)
           this.lastHorizontalDirection = 'right';
@@ -678,13 +707,19 @@ class MainScene extends Phaser.Scene {
           //this.physics.add.overlap(this.player, this.enemies, this.handlePlayerDamage, null, this);
           this.playerEnemyCollider = this.physics.add.overlap(this.player, this.enemies, this.handlePlayerEnemyCollision, null, this);
 
-          // Set up collision detection for fireballs hitting the player
-          if (this.playerFireballCollider) {
-              this.physics.world.removeCollider(this.playerFireballCollider);
-          }
-          this.playerFireballCollider = this.physics.add.overlap(this.player, this.fireballs, this.handleFireballHit, null, this);
+           // Set up collision detection for fireballs hitting the player
+           if (this.playerFireballCollider) {
+               this.physics.world.removeCollider(this.playerFireballCollider);
+           }
+           this.playerFireballCollider = this.physics.add.overlap(this.player, this.fireballs, this.handleFireballHit, null, this);
 
-    // Create health bar sprite display (health value - underneath)
+           // Set up collision detection for player picking up potions
+           if (this.playerPotionCollider) {
+               this.physics.world.removeCollider(this.playerPotionCollider);
+           }
+           this.playerPotionCollider = this.physics.add.overlap(this.player, this.potions, this.handlePotionPickup, null, this);
+
+     // Create health bar sprite display (health value - underneath)
     this.healthValueBar = this.add.sprite(750, 550, 'healthbars', 1);
     this.healthValueBar.setScale(3); // Scale to 3x size
     this.healthValueBar.setOrigin(1, 1); // Align to bottom right
@@ -741,9 +776,12 @@ class MainScene extends Phaser.Scene {
                    });
                }
              
-             // Enable attacking now that the game is initialized
-             this.isGameStarted = true;
-      }
+              // Enable attacking now that the game is initialized
+              this.isGameStarted = true;
+
+              // Start the potion spawner for this level
+              this.startPotionSpawner();
+       }
 
         checkWinCondition() {
             // Check if all enemies are defeated
@@ -1296,68 +1334,68 @@ class MainScene extends Phaser.Scene {
      }
 
     spawnEnemy(type = enemyTypes.ORC) {
-        // Create an enemy at a random position, maintaining minimum distance from player
-        const MIN_SPAWN_DISTANCE = 200; // Minimum distance from player
-        let randomX, randomY, distanceFromPlayer;
+         // Create an enemy at a random position, maintaining minimum distance from player
+         const MIN_SPAWN_DISTANCE = 200; // Minimum distance from player
+         let randomX, randomY, distanceFromPlayer;
 
-        // Keep generating random positions until we find one far enough from the player
-        do {
-            randomX = Phaser.Math.Between(50, 750);
-            randomY = Phaser.Math.Between(50, 550);
-            distanceFromPlayer = Phaser.Math.Distance.Between(
-                randomX, randomY,
-                this.player.x, this.player.y
-            );
-        } while (distanceFromPlayer < MIN_SPAWN_DISTANCE);
+         // Keep generating random positions until we find one far enough from the player
+         do {
+             randomX = Phaser.Math.Between(50, 750);
+             randomY = Phaser.Math.Between(50, 550);
+             distanceFromPlayer = Phaser.Math.Distance.Between(
+                 randomX, randomY,
+                 this.player.x, this.player.y
+             );
+         } while (distanceFromPlayer < MIN_SPAWN_DISTANCE);
 
-         // Get configuration for this enemy type
-         const config = enemyConfigs[type];
-         const enemy = this.add.sprite(randomX, randomY, config.assetKey, 0);
-         enemy.setScale(3);
-         enemy.setDepth(5); // Enemies render on top of player by default
-         enemy.setRotation(0); // Ensure rotation is reset to normal
-         enemy.type = type; // Store the enemy type for later reference
+          // Get configuration for this enemy type
+          const config = enemyConfigs[type];
+          const enemy = this.add.sprite(randomX, randomY, config.assetKey, 0);
+          enemy.setScale(3);
+          enemy.setDepth(5); // Enemies render on top of player by default
+          enemy.setRotation(0); // Ensure rotation is reset to normal
+          enemy.type = type; // Store the enemy type for later reference
 
-         // Play the appropriate stand animation based on enemy type
-         enemy.play(`${type.toLowerCase()}_stand`);
+          // Play the appropriate stand animation based on enemy type
+          enemy.play(`${type.toLowerCase()}_stand`);
 
-          this.physics.add.existing(enemy);
-          enemy.body.setCollideWorldBounds(false);
-          enemy.body.setSize(20.4, 19.95, true);
-          enemy.body.setOffset(40, 38);
+           this.physics.add.existing(enemy);
+           enemy.body.setCollideWorldBounds(false);
+           enemy.body.setSize(20.4, 19.95, true);
+           enemy.body.setOffset(40, 38);
 
-         // Initialize enemy-specific properties
-           enemy.isMoving = false;
-           enemy.direction = { x: 0, y: 0 };
-           enemy.lastEdgeHitTime = 0;
-           enemy.lastHorizontalDirection = 'right';
-           enemy.isDead = false;
-           enemy.isAxeSwinging = false; // Track if enemy is currently attacking
-            enemy.hasRecentlyAttacked = false;
-            enemy.isAttacking = false; // Track if wizard is currently attacking
-            enemy.health = config.health; // Initialize health from config
-            enemy.lastHitTime = 0; // Track when enemy was last hit by player
-          
-          // Werewolf-specific properties
-          if (type === enemyTypes.WEREWOLF) {
-              enemy.hasDetectedPlayer = false;  // Track if player has been spotted
-              enemy.huntSpeed = this.WEREWOLF_PATROL_SPEED; // Current movement speed
-          }
+          // Initialize enemy-specific properties
+            enemy.isMoving = false;
+            enemy.direction = { x: 0, y: 0 };
+            enemy.lastEdgeHitTime = 0;
+            enemy.lastHorizontalDirection = 'right';
+            enemy.isDead = false;
+            enemy.isAxeSwinging = false; // Track if enemy is currently attacking
+             enemy.hasRecentlyAttacked = false;
+             enemy.isAttacking = false; // Track if wizard is currently attacking
+             enemy.health = config.health; // Initialize health from config
+             enemy.lastHitTime = 0; // Track when enemy was last hit by player
+           
+           // Werewolf-specific properties
+           if (type === enemyTypes.WEREWOLF) {
+               enemy.hasDetectedPlayer = false;  // Track if player has been spotted
+               enemy.huntSpeed = this.WEREWOLF_PATROL_SPEED; // Current movement speed
+           }
 
-         // Add enemy to group
-         this.enemies.add(enemy);
+          // Add enemy to group
+          this.enemies.add(enemy);
 
-         // Start the enemy behavior cycle
-         this.scheduleEnemyBehaviorChange(enemy);
+          // Start the enemy behavior cycle
+          this.scheduleEnemyBehaviorChange(enemy);
 
-         // If this is a wizard, schedule fireball attacks
-          if (type === enemyTypes.WIZARD) {
-              enemy.lastAlignedAttackTime = 0;  // Track cooldown for direct attacks
-              enemy.alignmentCheckTime = 0;    // Track last alignment check time
-              this.scheduleWizardAttack(enemy);
-          }
+          // If this is a wizard, schedule fireball attacks
+           if (type === enemyTypes.WIZARD) {
+               enemy.lastAlignedAttackTime = 0;  // Track cooldown for direct attacks
+               enemy.alignmentCheckTime = 0;    // Track last alignment check time
+               this.scheduleWizardAttack(enemy);
+           }
 
-     }
+      }
 
 
      spawnFireball(wizard) {
@@ -1478,9 +1516,229 @@ class MainScene extends Phaser.Scene {
                     this.scheduleWizardAttack(wizard);
                 }
             });
-        }
-        
-    }
+         }
+         
+     }
+
+      spawnPotion(x, y) {
+          const potion = this.add.sprite(x, y, 'dungeon', 89);
+          potion.setScale(3); // Same scale as background tiles
+          potion.setDepth(3); // Render above player but below most enemies
+          
+          // Add physics to potion
+          this.physics.add.existing(potion);
+          potion.body.setSize(16, 16, true);
+          potion.body.setOffset(0, 0);
+          potion.body.setVelocity(0, 0);
+          
+          // Add to potions group
+          this.potions.add(potion);
+          
+          // Fade out potion after 4 seconds if not picked up (fades over 600ms, total 5 seconds)
+          this.time.delayedCall(4000, () => {
+              if (potion && !potion.destroyed) {
+                  this.fadePotionOut(potion, 600);
+              }
+          });
+      }
+
+      startPotionSpawner() {
+          // Get max potions for current level
+          const levelConfig = this.levels[this.currentLevelIndex];
+          this.maxPotionsPerLevel = levelConfig.potions || 0;
+          this.totalPotionsSpawned = 0; // Track total potions spawned in this level
+
+          // Start the spawning cycle
+          this.scheduleNextPotionSpawn();
+      }
+
+      scheduleNextPotionSpawn() {
+          // Generate random delay between 5-10 seconds
+          const spawnDelay = Phaser.Math.Between(5000, 10000);
+
+          // Schedule the next potion spawn
+          this.potionSpawner = this.time.delayedCall(spawnDelay, () => {
+              this.spawnRandomPotion();
+          });
+      }
+
+      spawnRandomPotion() {
+          // Check if we've already spawned the max number of potions for this level
+          if (this.totalPotionsSpawned >= this.maxPotionsPerLevel) {
+              // Stop scheduling more spawns
+              return;
+          }
+
+          // Calculate center of all enemies
+          const enemyCenter = this.getEnemyCenterPosition();
+
+          let spawnX, spawnY;
+
+          if (enemyCenter) {
+              // Spawn at enemy center with slight random offset (±20 pixels)
+              spawnX = enemyCenter.x + Phaser.Math.Between(-20, 20);
+              spawnY = enemyCenter.y + Phaser.Math.Between(-20, 20);
+          } else {
+              // No enemies - fall back to random spawn location
+              spawnX = Phaser.Math.Between(50, 750);
+              spawnY = Phaser.Math.Between(50, 550);
+          }
+
+          // Clamp to world bounds to ensure potion stays on screen
+          spawnX = Phaser.Math.Clamp(spawnX, 50, 750);
+          spawnY = Phaser.Math.Clamp(spawnY, 50, 550);
+
+          // Spawn potion at calculated location
+          this.spawnPotion(spawnX, spawnY);
+
+          // Create blue particles at spawn location
+          this.createPotionSpawnParticles(spawnX, spawnY);
+
+          // Increment total spawned counter
+          this.totalPotionsSpawned++;
+
+          // Only schedule next spawn if we haven't reached the limit
+          if (this.totalPotionsSpawned < this.maxPotionsPerLevel) {
+              this.scheduleNextPotionSpawn();
+          }
+      }
+
+      getEnemyCenterPosition() {
+          // Get all living enemies
+          const livingEnemies = this.enemies.children.entries.filter(enemy => !enemy.destroyed);
+          
+          if (livingEnemies.length === 0) {
+              // No enemies - return null to signal fallback to random spawn
+              return null;
+          }
+          
+          // Calculate average position (centroid)
+          let totalX = 0;
+          let totalY = 0;
+          
+          livingEnemies.forEach(enemy => {
+              totalX += enemy.x;
+              totalY += enemy.y;
+          });
+          
+          return {
+              x: totalX / livingEnemies.length,
+              y: totalY / livingEnemies.length
+          };
+      }
+
+      createPotionSpawnParticles(x, y) {
+          // Create blue particles for potion spawn effect
+          const particleCount = 10;
+          for (let i = 0; i < particleCount; i++) {
+              const angle = (i / particleCount) * Math.PI * 2; // Radial distribution
+              const speed = 150 + Math.random() * 100; // 150-250 pixels/sec
+              const velocityX = Math.cos(angle) * speed;
+              const velocityY = Math.sin(angle) * speed;
+              
+              const particle = this.add.sprite(x, y, 'dungeon', 0);
+              particle.setScale(0.5 + Math.random() * 0.5);
+              particle.setTint(0x6464ff); // Blue color
+              particle.setDepth(8);
+              
+              // Add physics
+              this.physics.add.existing(particle);
+              particle.body.setVelocity(velocityX, velocityY);
+              
+              // Fade out over time
+              this.tweens.add({
+                  targets: particle,
+                  alpha: 0,
+                  lifespan: 600,
+                  ease: 'Linear',
+                  onComplete: () => {
+                      particle.destroy();
+                  }
+              });
+          }
+      }
+
+      stopPotionSpawner() {
+          // Clear the spawner timer if it exists
+          if (this.potionSpawner) {
+              this.potionSpawner.remove(false);
+              this.potionSpawner = null;
+          }
+      }
+
+      fadePotionOut(potion, duration = 600) {
+          if (!potion || potion.destroyed) {
+              return;
+          }
+          
+          this.tweens.add({
+              targets: potion,
+              alpha: 0,
+              duration: duration,
+              ease: 'Quad.out',
+              onComplete: () => {
+                  if (potion && !potion.destroyed) {
+                      potion.destroy();
+                  }
+              }
+          });
+      }
+
+      handlePotionPickup(player, potion) {
+          if (this.gameIsOver) {
+              return;
+          }
+          
+          // Restore 2 health (capped at 6)
+          const oldHealth = player.health;
+          player.health = Math.min(6, player.health + 2);
+          
+          // Only show effects if health actually increased
+          if (player.health > oldHealth) {
+              // Create light-red particles
+              this.createPotionPickupParticles(potion.x, potion.y);
+              
+              // Update health bar display
+              if (this.healthValueBar) {
+                  const healthFrame = Math.min(7, Math.max(1, 7 - player.health));
+                  this.healthValueBar.setFrame(healthFrame);
+              }
+          }
+          
+          // Fade out potion
+          this.fadePotionOut(potion, 600);
+      }
+
+     createPotionPickupParticles(x, y) {
+         // Create light-red particles for potion pickup effect
+         const particleCount = 10;
+         for (let i = 0; i < particleCount; i++) {
+             const angle = (i / particleCount) * Math.PI * 2; // Radial distribution
+             const speed = 150 + Math.random() * 100; // 150-250 pixels/sec
+             const velocityX = Math.cos(angle) * speed;
+             const velocityY = Math.sin(angle) * speed;
+             
+             const particle = this.add.sprite(x, y, 'dungeon', 0);
+             particle.setScale(0.5 + Math.random() * 0.5);
+             particle.setTint(0xff6464); // Light red color
+             particle.setDepth(8);
+             
+             // Add physics
+             this.physics.add.existing(particle);
+             particle.body.setVelocity(velocityX, velocityY);
+             
+             // Fade out over time
+             this.tweens.add({
+                 targets: particle,
+                 alpha: 0,
+                 lifespan: 600,
+                 ease: 'Linear',
+                 onComplete: () => {
+                     particle.destroy();
+                 }
+             });
+         }
+     }
 
       update() {
          if (this.gameIsOver || this.isPaused){
@@ -2085,13 +2343,13 @@ class MainScene extends Phaser.Scene {
                   // Reduce enemy health by 1
                   enemy.health -= 1;
 
-                  // Check if enemy is dead
-                  if (enemy.health <= 0) {
-                     // Mark enemy as dead
-                     enemy.isDead = true;
+                    // Check if enemy is dead
+                    if (enemy.health <= 0) {
+                       // Mark enemy as dead
+                       enemy.isDead = true;
 
-                     // Lower enemy's depth so it renders under the player after death
-                     enemy.setDepth(-1);
+                       // Lower enemy's depth so it renders under the player after death
+                       enemy.setDepth(-1);
 
                      // Stop enemy movement
                      enemy.body.setVelocity(0, 0);
@@ -2216,17 +2474,20 @@ class MainScene extends Phaser.Scene {
          }
        }
 
-       gameOver() {
-           if(this.gameIsOver){
-               return;
-           }
-           this.gameIsOver = true;
+        gameOver() {
+            if(this.gameIsOver){
+                return;
+            }
+            this.gameIsOver = true;
 
-           // Stop background music
-           if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
-               this.backgroundMusic.stop();
-               this.backgroundMusic = null;
-           }
+            // Stop potion spawner
+            this.stopPotionSpawner();
+
+            // Stop background music
+            if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
+                this.backgroundMusic.stop();
+                this.backgroundMusic = null;
+            }
 
            // Clean up audio filter
            this.cleanupAudioFilter();
