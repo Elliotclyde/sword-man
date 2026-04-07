@@ -1576,8 +1576,8 @@ class MainScene extends Phaser.Scene {
 
              for (let p = 0; p < peninsulaCount; p++) {
                  // Random dimensions between 4x4 and 8x8 tiles
-                 let peninsulaWidth = Phaser.Math.Between(4, 8);
-                 const peninsulaHeight = Phaser.Math.Between(4, 8);
+                 let peninsulaWidth = Phaser.Math.Between(2, 6);
+                 const peninsulaHeight = Phaser.Math.Between(2, 6);
 
                  // Ensure peninsula fits with 1-tile gaps on both sides
                  // Grid: [0:wall][1:gap]...[18:gap][19:wall]
@@ -1603,9 +1603,9 @@ class MainScene extends Phaser.Scene {
                  // Peninsulas should extend INTO the playable area with 1-tile gaps from walls
                  let gridX;
                  if (side === 'left') {
-                     gridX = 1; // 1-tile gap from left wall at column 0
+                     gridX = 0; // 1-tile gap from left wall at column 0
                  } else {
-                     gridX = gridWidth - peninsulaWidth - 1; // 1-tile gap before right wall at column 19
+                     gridX = gridWidth - peninsulaWidth; // 1-tile gap before right wall at column 19
                  }
 
                 // Check if peninsula collides with player spawn area
@@ -1662,8 +1662,40 @@ class MainScene extends Phaser.Scene {
                           // Check if tile is on the perimeter (edges)
                           const isPerimeter = isLeft || isRight || isTop || isBottom;
                           
-                          // Internal tiles always use frame 78
-                          if (!isPerimeter) {
+                          // Helper function to check if a grid position is a game tile (playable area)
+                          const isGameTile = (gx, gy) => {
+                              // Game tiles are in the playable area: columns 1-18, rows 1-22
+                              return gx > 0 && gx < gridWidth - 1 && gy > 0 && gy < gridHeight - 1;
+                          };
+                          
+                          // For edge tiles, check if they touch only walls (not game tiles)
+                          let touchesOnlyWalls = false;
+                          if (isPerimeter) {
+                              touchesOnlyWalls = true;
+                              
+                              // Check all 4 neighbors
+                              const neighbors = [
+                                  [currentGridX - 1, currentGridY], // left
+                                  [currentGridX + 1, currentGridY], // right
+                                  [currentGridX, currentGridY - 1], // top
+                                  [currentGridX, currentGridY + 1]  // bottom
+                              ];
+                              
+                              for (const [nx, ny] of neighbors) {
+                                  // If neighbor is a game tile (and not part of this peninsula), then this edge tile touches game tile
+                                  const isNeighborGameTile = isGameTile(nx, ny);
+                                  const isNeighborPeninsula = (nx >= gridX && nx < gridX + peninsulaWidth &&
+                                                               ny >= gridY && ny < gridY + peninsulaHeight);
+                                  
+                                  if (isNeighborGameTile && !isNeighborPeninsula) {
+                                      touchesOnlyWalls = false;
+                                      break;
+                                  }
+                              }
+                          }
+                          
+                          // Internal tiles and edge tiles touching only walls use frame 78
+                          if (!isPerimeter || touchesOnlyWalls) {
                               frame = 78;
                           } else if (isBottom) {
                               // Bottom row uses bottom wall frames or corners
@@ -1672,8 +1704,10 @@ class MainScene extends Phaser.Scene {
                               } else if (isRight && side === 'right') {
                                   frame = 45; // Bottom-right corner for right peninsulas
                               } else {
-                                  frame = Phaser.Utils.Array.GetRandom(bottomWallFrames);
+                                  frame = 1
                               }
+                          } else if (isTop) {
+                                frame = 51
                           } else if (side === 'left') {
                               // Left peninsulas use left wall frames
                               frame = Phaser.Utils.Array.GetRandom(leftWallFrames);
