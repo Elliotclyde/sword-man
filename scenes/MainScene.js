@@ -1565,13 +1565,19 @@ class MainScene extends Phaser.Scene {
             // Randomly decide number of peninsulas (0-2)
             const peninsulaCount = Phaser.Math.Between(0, 2);
 
-            for (let p = 0; p < peninsulaCount; p++) {
-                // Random dimensions between 4x4 and 8x8 tiles
-                const peninsulaWidth = Phaser.Math.Between(4, 8);
-                const peninsulaHeight = Phaser.Math.Between(4, 8);
+             for (let p = 0; p < peninsulaCount; p++) {
+                 // Random dimensions between 4x4 and 8x8 tiles
+                 let peninsulaWidth = Phaser.Math.Between(4, 8);
+                 const peninsulaHeight = Phaser.Math.Between(4, 8);
 
-                // Randomly choose which side (left or right)
-                const side = Phaser.Math.RND.pick(['left', 'right']);
+                 // Ensure peninsula fits with 1-tile gaps on both sides
+                 // Grid: [0:wall][1:gap]...[18:gap][19:wall]
+                 // Available: 17 tiles (columns 1-18)
+                 const maxPeninsulaWidth = gridWidth - 3; // 20 - 3 = 17
+                 peninsulaWidth = Math.min(peninsulaWidth, maxPeninsulaWidth);
+
+                 // Randomly choose which side (left or right)
+                 const side = Phaser.Math.RND.pick(['left', 'right']);
 
                 // Calculate valid Y range (avoid corners: keep 3+ tiles from top/bottom)
                 const minGridY = 3;
@@ -1584,14 +1590,14 @@ class MainScene extends Phaser.Scene {
 
                 const gridY = Phaser.Math.Between(minGridY, maxGridY);
 
-                // Determine grid X based on side
-                // Peninsulas should extend INTO the playable area from the edges
-                let gridX;
-                if (side === 'left') {
-                    gridX = 0; // Starts at left wall, extends rightward into playable area
-                } else {
-                    gridX = gridWidth - peninsulaWidth; // Starts before right wall, extends rightward to edge
-                }
+                 // Determine grid X based on side
+                 // Peninsulas should extend INTO the playable area with 1-tile gaps from walls
+                 let gridX;
+                 if (side === 'left') {
+                     gridX = 1; // 1-tile gap from left wall at column 0
+                 } else {
+                     gridX = gridWidth - peninsulaWidth - 1; // 1-tile gap before right wall at column 19
+                 }
 
                 // Store peninsula metadata
                 const peninsula = {
