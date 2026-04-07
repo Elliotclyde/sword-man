@@ -1655,16 +1655,15 @@ class MainScene extends Phaser.Scene {
                           // Determine frame based on position
                           let frame;
                           const isBottom = (currentGridY === gridY + peninsulaHeight - 1);
+                          const isTop = (currentGridY === gridY);
                           const isRight = (tx === peninsulaWidth - 1);
                           const isLeft = (tx === 0);
                           
-                          // Calculate center position of peninsula
-                          const centerX = gridX + Math.floor(peninsulaWidth / 2);
-                          const centerY = gridY + Math.floor(peninsulaHeight / 2);
-                          const isCenter = (currentGridX === centerX && currentGridY === centerY);
-
-                          if (isCenter) {
-                              // Center sprite is always frame 78
+                          // Check if tile is on the perimeter (edges)
+                          const isPerimeter = isLeft || isRight || isTop || isBottom;
+                          
+                          // Internal tiles always use frame 78
+                          if (!isPerimeter) {
                               frame = 78;
                           } else if (isBottom) {
                               // Bottom row uses bottom wall frames or corners
