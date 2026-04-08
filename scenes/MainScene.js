@@ -155,6 +155,14 @@ class MainScene extends Phaser.Scene {
     // Background music gain node for independent volume control
     this.backgroundMusicGainNode = null; // Background music gain node
     this.BACKGROUND_MUSIC_VOLUME = 0.2; // Independent background music volume
+
+    // Key collectible state
+    this.keyPickedUp = false; // Track if key collected this level
+    this.key = null; // Reference to key sprite
+    this.keySpawned = false; // Prevent duplicate spawning
+
+    // Door state
+    this.doorUsed = false; // Prevent multiple door interactions per level
   }
 
   preload() {
@@ -568,6 +576,9 @@ class MainScene extends Phaser.Scene {
 
     // Reset player if it exists
     if (this.player) {
+      // Kill any active tweens on the player (e.g., fade out tween from door transition)
+      this.tweens.killTweensOf(this.player);
+
       const currentLevel = this.levels[this.currentLevelIndex];
       this.player.setPosition(
         currentLevel.playerStartX,
@@ -613,6 +624,25 @@ class MainScene extends Phaser.Scene {
       this.levelText.destroy();
       this.levelText = null;
     }
+
+    // Reset key state
+    this.keyPickedUp = false;
+    this.keySpawned = false;
+    if (this.key && !this.key.destroyed) {
+      this.key.destroy();
+      this.key = null;
+    }
+    // Remove key collision if it exists
+    if (this.playerKeyCollider) {
+      this.physics.world.removeCollider(this.playerKeyCollider);
+      this.playerKeyCollider = null;
+    }
+
+    // Reset door state
+    this.doorUsed = false;
+
+    // Re-enable player input
+    this.input.enabled = true;
 
     // Completely remove all existing enemies with multiple cleanup approaches
     if (this.enemies) {
@@ -835,6 +865,12 @@ class MainScene extends Phaser.Scene {
     this.playerWallCollider = this.physics.add.collider(
       this.player,
       this.walls,
+      (player, wall) => {
+        // Only trigger door handler for door tiles
+        if (wall.isDoorTile) {
+          this.handleDoorCollision(player, wall);
+        }
+      },
     );
 
     // Set up collision detection for enemies colliding with walls
@@ -945,7 +981,7 @@ class MainScene extends Phaser.Scene {
   checkWinCondition() {
     // Check if all enemies are defeated
     const livingEnemies = this.enemies.children.entries.filter(
-      (enemy) => !enemy.destroyed,
+      (enemy) => !enemy.destroyed && !enemy.isDead,
     );
     if (livingEnemies.length === 0) {
       // Check if there are more levels
@@ -1164,6 +1200,9 @@ class MainScene extends Phaser.Scene {
       // Clean up audio filter before restart
       this.cleanupAudioFilter();
 
+      // Ensure player is unfaded for restart
+      this.player.setAlpha(1);
+
       // Use a delayed call to ensure the event handler completes before reinitializing
       this.time.delayedCall(10, () => {
         this.currentLevelIndex = 0; // Reset to first level
@@ -1217,6 +1256,21 @@ class MainScene extends Phaser.Scene {
     });
     // Clear the enemies group
     this.enemies.clear();
+
+    // Reset key state
+    this.keyPickedUp = false;
+    this.keySpawned = false;
+    if (this.key && !this.key.destroyed) {
+      this.key.destroy();
+      this.key = null;
+    }
+    if (this.playerKeyCollider) {
+      this.physics.world.removeCollider(this.playerKeyCollider);
+      this.playerKeyCollider = null;
+    }
+
+    // Reset door state
+    this.doorUsed = false;
   }
 
   create() {
@@ -1965,7 +2019,7 @@ class MainScene extends Phaser.Scene {
 
         // Calculate valid Y range (allow peninsulas to extend to bottom boundary)
         const minGridY = 2;
-        const maxGridY = playableGridHeight - peninsulaHeight - 2;
+        const maxGridY = playableGridHeight - peninsulaHeight - 3;
 
         // Only create peninsula if there's valid space vertically
         if (maxGridY <= minGridY) {
@@ -2825,6 +2879,123 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  spawnKey(x, y) {
+    // Create key sprite at position
+    this.key = this.add.sprite(x, y, "dungeon", 88);
+    this.key.setScale(3);
+    this.key.setDepth(2);
+
+    // Enable physics
+    this.physics.add.existing(this.key);
+    this.key.body.setCollideWorldBounds(true);
+    this.key.body.setBounce(0, 0);
+    this.key.body.setDrag(1, 1);
+
+    // Floating bobbing animation (sine wave, ±10px, 2.5 second cycle)
+    const originalY = this.key.y;
+    this.tweens.add({
+      targets: this.key,
+      y: originalY - 10,
+      duration: 1250, // Half cycle (up)
+      ease: "Sine.easeInOut",
+      repeat: -1,
+      yoyo: true, // Returns to originalY automatically
+    });
+
+    // Set up collision detection for player picking up key (with 500ms delay)
+    this.time.delayedCall(500, () => {
+      if (this.playerKeyCollider) {
+        this.physics.world.removeCollider(this.playerKeyCollider);
+      }
+      this.playerKeyCollider = this.physics.add.overlap(
+        this.player,
+        this.key,
+        this.handleKeyPickup,
+        null,
+        this,
+      );
+    });
+
+    this.keySpawned = true;
+  }
+
+  handleKeyPickup(player, key) {
+    if (this.gameIsOver || this.keyPickedUp) {
+      return;
+    }
+
+    // Mark key as picked up
+    this.keyPickedUp = true;
+
+    // Create golden particles
+    this.createKeyPickupParticles(key.x, key.y);
+
+    // Destroy the key
+    key.destroy();
+  }
+
+  handleDoorCollision(player, door) {
+    // Only trigger if:
+    // 1. Key has been picked up
+    // 2. The wall tile is actually a door
+    if (!this.keyPickedUp || !door.isDoorTile) {
+      return;
+    }
+
+    // Prevent multiple door interactions
+    if (this.doorUsed) {
+      return;
+    }
+    this.doorUsed = true;
+
+    // Disable player input during transition
+    this.input.enabled = false;
+
+    // Fade out player
+    this.tweens.add({
+      targets: this.player,
+      alpha: 0,
+      duration: 300,
+      ease: "Power2.easeIn",
+    });
+
+    // After fade completes, trigger level progression
+    this.time.delayedCall(300, () => {
+      this.checkWinCondition();
+    });
+  }
+
+  createKeyPickupParticles(x, y) {
+    // Create 12 golden particles bursting outward
+    const particleCount = 12;
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2; // Even radial distribution
+      const speed = 200 + Math.random() * 100; // 200-300 pixels/sec
+      const velocityX = Math.cos(angle) * speed;
+      const velocityY = Math.sin(angle) * speed;
+
+      const particle = this.add.sprite(x, y, "dungeon", 0);
+      particle.setScale(0.6 + Math.random() * 0.4);
+      particle.setTint(0xffd700); // Golden color
+      particle.setDepth(8);
+
+      // Add physics
+      this.physics.add.existing(particle);
+      particle.body.setVelocity(velocityX, velocityY);
+
+      // Fade out over 300ms
+      this.tweens.add({
+        targets: particle,
+        alpha: 0,
+        duration: 300,
+        ease: "Linear",
+        onComplete: () => {
+          particle.destroy();
+        },
+      });
+    }
+  }
+
   update() {
     if (this.gameIsOver || this.isPaused) {
       return;
@@ -3549,6 +3720,20 @@ class MainScene extends Phaser.Scene {
           // Stop animation so the last frame stays visible
           enemy.stop();
 
+          // Check if this is the last enemy dying
+          const livingEnemies = this.enemies.children.entries.filter(
+            (e) => !e.destroyed && !e.isDead && e !== enemy,
+          );
+          if (livingEnemies.length === 0 && !this.keySpawned) {
+            // Mark that key will be spawned to prevent duplicate spawns
+            this.keySpawned = true;
+
+            // Schedule key spawn after a brief delay (let current enemy still be visible)
+            this.time.delayedCall(300, () => {
+              this.spawnKey(enemy.x, enemy.y);
+            });
+          }
+
           // Create a tween to fade out over 2 seconds
           enemy.fadeTween = this.tweens.add({
             targets: enemy,
@@ -3562,7 +3747,7 @@ class MainScene extends Phaser.Scene {
               }
               enemy.destroy();
               // Check if all enemies are defeated
-              this.checkWinCondition();
+              // this.checkWinCondition();
             },
           });
         });
@@ -3771,6 +3956,18 @@ class MainScene extends Phaser.Scene {
           }
         });
         this.enemies.clear();
+
+        // Reset key state
+        this.keyPickedUp = false;
+        this.keySpawned = false;
+        if (this.key && !this.key.destroyed) {
+          this.key.destroy();
+          this.key = null;
+        }
+        if (this.playerKeyCollider) {
+          this.physics.world.removeCollider(this.playerKeyCollider);
+          this.playerKeyCollider = null;
+        }
 
         // Display game over text
         this.resultText = this.add.text(400, 250, "GAME OVER", {

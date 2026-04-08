@@ -25,7 +25,7 @@ This project does not have a traditional build process. It uses ES6 modules dire
 
 ### Linting
 
-we use prettier religiously. Please smash `npx prettier . --write` after any change. 
+we use prettier religiously. Please smash `npx prettier . --write` after any change.
 
 ### Testing
 
