@@ -699,15 +699,26 @@ class MainScene extends Phaser.Scene {
                   this.wallDecorations.clear();
                }
 
-               // Remove all peninsula sprites
-               if (this.peninsulaSprites) {
-                   const peninsulaSpritesToDestroy = [...this.peninsulaSprites.children.entries];
-                   peninsulaSpritesToDestroy.forEach(sprite => {
-                       if (sprite && !sprite.destroyed) {
-                           sprite.destroy();
-                       }
-                   });
-                    this.peninsulaSprites.clear();
+                // Remove all peninsula sprites
+                if (this.peninsulaSprites) {
+                    const peninsulaSpritesToDestroy = [...this.peninsulaSprites.children.entries];
+                    peninsulaSpritesToDestroy.forEach(sprite => {
+                        if (sprite && !sprite.destroyed) {
+                            sprite.destroy();
+                        }
+                    });
+                     this.peninsulaSprites.clear();
+                 }
+
+                // Remove all peninsula collision walls
+                if (this.peninsulaWalls) {
+                    const peninsulaWallsToDestroy = [...this.peninsulaWalls.children.entries];
+                    peninsulaWallsToDestroy.forEach(wall => {
+                        if (wall && !wall.destroyed) {
+                            wall.destroy();
+                        }
+                    });
+                    this.peninsulaWalls.clear();
                 }
 
                    // Regenerate walls for this level (before peninsulas so door position is set)
@@ -783,11 +794,23 @@ class MainScene extends Phaser.Scene {
            }
            this.playerWallCollider = this.physics.add.collider(this.player, this.walls);
 
-            // Set up collision detection for enemies colliding with walls
-            if (this.enemyWallCollider) {
-                this.physics.world.removeCollider(this.enemyWallCollider);
-            }
-            this.enemyWallCollider = this.physics.add.collider(this.enemies, this.walls, this.handleEnemyWallCollision, null, this);
+             // Set up collision detection for enemies colliding with walls
+             if (this.enemyWallCollider) {
+                 this.physics.world.removeCollider(this.enemyWallCollider);
+             }
+             this.enemyWallCollider = this.physics.add.collider(this.enemies, this.walls, this.handleEnemyWallCollision, null, this);
+
+             // Set up collision detection for player colliding with peninsula walls
+             if (this.playerPeninsulaWallCollider) {
+                 this.physics.world.removeCollider(this.playerPeninsulaWallCollider);
+             }
+             this.playerPeninsulaWallCollider = this.physics.add.collider(this.player, this.peninsulaWalls);
+
+             // Set up collision detection for enemies colliding with peninsula walls
+             if (this.enemyPeninsulaWallCollider) {
+                 this.physics.world.removeCollider(this.enemyPeninsulaWallCollider);
+             }
+             this.enemyPeninsulaWallCollider = this.physics.add.collider(this.enemies, this.peninsulaWalls, this.handleEnemyWallCollision, null, this);
 
       // Create health bar sprite display (health value - underneath)
     this.healthValueBar = this.add.sprite(750, 550, 'healthbars', 1);
@@ -1135,11 +1158,12 @@ class MainScene extends Phaser.Scene {
             
              // Store wall generation parameters as instance variables for later use
               this.tileScale = scale; // Store scale as instance variable for later use
-              this.wallGenerationParams = { tileSize, gridWidth, playableGridHeight: PLAYABLE_GRID_HEIGHT, scale };
-              this.peninsulas = []; // Track all peninsulas for collision detection
-              this.peninsulaGraphics = this.add.graphics();
-              this.peninsulaGraphics.setDepth(-8); // Render above bounding walls
-              this.peninsulaSprites = this.add.group(); // Group to track peninsula corner sprites for cleanup
+               this.wallGenerationParams = { tileSize, gridWidth, playableGridHeight: PLAYABLE_GRID_HEIGHT, scale };
+               this.peninsulas = []; // Track all peninsulas for collision detection
+               this.peninsulaGraphics = this.add.graphics();
+               this.peninsulaGraphics.setDepth(-8); // Render above bounding walls
+               this.peninsulaSprites = this.add.group(); // Group to track peninsula corner sprites for cleanup
+               this.peninsulaWalls = this.physics.add.staticGroup(); // Physics group for peninsula collision zones
 
           for (let y = 0; y < PLAYABLE_GRID_HEIGHT; y++) {
              for (let x = 0; x < gridWidth; x++) {
@@ -1740,29 +1764,11 @@ class MainScene extends Phaser.Scene {
               this.spawnDoor(tileSize, gridWidth, scale);
          }
 
-        generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, levelConfig) {
-            // Clear any existing peninsula wall sprites from the walls group
-            if (this.peninsulas && this.peninsulas.length > 0) {
-                // Destroy all wall zones that belong to peninsulas
-                this.peninsulas.forEach(peninsula => {
-                    peninsula.tiles.forEach(tile => {
-                        // Find and destroy the wall zone at this position
-                        const wallsToRemove = this.walls.children.entries.filter(wall => {
-                            return Math.abs(wall.x - (tile.pixelX + tile.pixelSize / 2)) < 1 && 
-                                   Math.abs(wall.y - (tile.pixelY + tile.pixelSize / 2)) < 1;
-                        });
-                        wallsToRemove.forEach(wall => {
-                            this.walls.remove(wall);
-                            wall.destroy();
-                        });
-                    });
-                });
-            }
+         generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, levelConfig) {
+             // Clear any existing peninsula data
+             this.peninsulas = [];
 
-            // Clear any existing peninsula data
-            this.peninsulas = [];
-
-            const scaledTileSize = tileSize * scale;
+             const scaledTileSize = tileSize * scale;
             const bottomWallY = 600 - scaledTileSize;
             const rightWallX = 800 - scaledTileSize;
 
@@ -1967,14 +1973,14 @@ class MainScene extends Phaser.Scene {
                              this.peninsulaSprites.add(wallSprite);
                          }
 
-                        // Add physics body for collision
-                        const rectangle = new Phaser.Geom.Rectangle(pixelX, pixelY, scaledTileSize, scaledTileSize);
-                        const wall = this.add.zone(pixelX + scaledTileSize / 2, pixelY + scaledTileSize / 2, scaledTileSize, scaledTileSize);
-                        this.physics.add.existing(wall, true); // Static
-                        wall.body.setSize(scaledTileSize, scaledTileSize);
-                        wall.body.setOffset(-scaledTileSize / 2, -scaledTileSize / 2);
-                        wall.isPeninsulaWall = true; // Mark this as a peninsula wall for collision handling
-                        this.walls.add(wall);
+                         // Add physics body for collision
+                         const rectangle = new Phaser.Geom.Rectangle(pixelX, pixelY, scaledTileSize, scaledTileSize);
+                         const wall = this.add.zone(pixelX + scaledTileSize / 2, pixelY + scaledTileSize / 2, scaledTileSize, scaledTileSize);
+                         this.physics.add.existing(wall, true); // Static
+                         wall.body.setSize(scaledTileSize, scaledTileSize);
+                         wall.body.setOffset(-scaledTileSize / 2, -scaledTileSize / 2);
+                         wall.isPeninsulaWall = true; // Mark this as a peninsula wall for collision handling
+                         this.peninsulaWalls.add(wall);
 
                             // Track tile in peninsula data
                             peninsula.tiles.push({
