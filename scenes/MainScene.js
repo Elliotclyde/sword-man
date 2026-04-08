@@ -1506,9 +1506,10 @@ class MainScene extends Phaser.Scene {
           return Math.floor(gridWidth / 2) - 1;
      }
 
-     spawnDoor(tileSize, gridWidth, scale) {
-          // Spawn a 2-tile-wide door on the bottom wall with wall tiles on either side
-          const doorGridX = this.findValidDoorPosition(gridWidth, scale);
+      spawnDoor(tileSize, gridWidth, scale) {
+           // Spawn a 2-tile-wide door on the bottom wall with wall tiles on either side
+           // Use the pre-calculated door position stored during wall spawning
+           const doorGridX = this.currentDoorGridX;
           const scaledTileSize = tileSize * scale;
           const doorWorldY = 600 - scaledTileSize;
           
@@ -1609,8 +1610,10 @@ class MainScene extends Phaser.Scene {
           const rightWallFrames = [15, 25, 35];
           const scaledTileSize = tileSize * scale;
 
-          // Pre-calculate door position to know which tiles to skip
-          const doorGridX = this.findValidDoorPosition(gridWidth, scale);
+           // Pre-calculate door position to know which tiles to skip
+           // Store it so spawnDoor() uses the exact same position
+           this.currentDoorGridX = this.findValidDoorPosition(gridWidth, scale);
+           const doorGridX = this.currentDoorGridX;
           const doorTilesToSkip = new Set();
           
           // Add door tiles to skip set (left wall, door left, door right, right wall)
