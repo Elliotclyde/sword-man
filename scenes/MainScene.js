@@ -1466,15 +1466,140 @@ class MainScene extends Phaser.Scene {
          }
      }
 
-    spawnWalls(tileSize, gridWidth, playableGridHeight, scale) {
-         // Create a physics group for walls
-         if (!this.walls) {
-             this.walls = this.physics.add.staticGroup();
-         } else {
-             // Clear existing walls if any
-             this.walls.children.entries.forEach(wall => wall.destroy());
-             this.walls.clear();
-         }
+     findValidDoorPosition(gridWidth, scale) {
+          // Find a valid position for a 2-tile-wide door on the bottom wall
+          // Door should not overlap with peninsulas and should have 1-tile buffer from them
+          const validColumns = [];
+          
+          // Valid X range: 1-17 (accounts for 2-tile width, no corners 0 & 19)
+          for (let x = 1; x < gridWidth - 2; x++) {
+              validColumns.push(x);
+          }
+          
+          // Shuffle the columns for random selection
+          Phaser.Utils.Array.Shuffle(validColumns);
+          
+          // Try each position to find one without peninsula overlap
+          for (let gridX of validColumns) {
+              let isValid = true;
+              
+              // Check buffer zone: gridX-1 to gridX+2 (1 tile buffer on each side)
+              for (let checkX = gridX - 1; checkX <= gridX + 2; checkX++) {
+                  // Skip if out of bounds
+                  if (checkX < 0 || checkX >= gridWidth) {
+                      continue;
+                  }
+                  
+                  // Check if this grid position is a peninsula tile
+                  if (this.isPeninsulaTile(checkX, 14)) {
+                      isValid = false;
+                      break;
+                  }
+              }
+              
+              if (isValid) {
+                  return gridX;
+              }
+          }
+          
+          // Fallback: return middle position if no valid spot found
+          return Math.floor(gridWidth / 2) - 1;
+     }
+
+     spawnDoor(tileSize, gridWidth, scale) {
+          // Spawn a 2-tile-wide door on the bottom wall with wall tiles on either side
+          const doorGridX = this.findValidDoorPosition(gridWidth, scale);
+          const scaledTileSize = tileSize * scale;
+          const doorWorldY = 600 - scaledTileSize;
+          
+          // Door frames: 66 (left) and 67 (right)
+          const doorFrames = [66, 67];
+          
+          // Top wall frames for tiles beside the door
+          const topWallFrames = [1, 2, 3, 4];
+          
+          // Create door tiles
+          if (!this.doorSprites) {
+              this.doorSprites = [];
+          } else {
+              // Clear existing door sprites
+              this.doorSprites.forEach(sprite => {
+                  if (sprite && !sprite.destroyed) {
+                      sprite.destroy();
+                  }
+              });
+              this.doorSprites = [];
+          }
+          
+          // Create wall tile to the left of the door (if not at edge)
+          if (doorGridX > 0) {
+              const leftWallWorldX = (doorGridX - 1) * scaledTileSize;
+              const leftWallFrame = Phaser.Utils.Array.GetRandom(topWallFrames);
+              const leftWallTile = this.add.sprite(leftWallWorldX, doorWorldY, 'dungeon', leftWallFrame);
+              
+              leftWallTile.setScale(scale);
+              leftWallTile.setOrigin(0, 0);
+              leftWallTile.setDepth(-9);
+              
+              this.physics.add.existing(leftWallTile, true);
+              leftWallTile.body.setSize(scaledTileSize, scaledTileSize * 0.3);
+              leftWallTile.body.setOffset(0, 0);
+              
+              this.walls.add(leftWallTile);
+              this.doorSprites.push(leftWallTile);
+          }
+          
+          // Create the two door tiles
+          for (let i = 0; i < 2; i++) {
+              const doorWorldX = (doorGridX + i) * scaledTileSize;
+              const doorTile = this.add.sprite(doorWorldX, doorWorldY, 'dungeon', doorFrames[i]);
+              
+              // Configure sprite
+              doorTile.setScale(scale);
+              doorTile.setOrigin(0, 0);
+              doorTile.setDepth(-9); // Between background tiles (-10) and peninsulas (-8)
+              doorTile.isDoorTile = true;
+              
+              // Add physics body for collision (static, matching wall behavior)
+              this.physics.add.existing(doorTile, true); // true = isStatic
+              doorTile.body.setSize(scaledTileSize, scaledTileSize * 0.3);
+              doorTile.body.setOffset(0, 0);
+              
+              // Add to walls collision group
+              this.walls.add(doorTile);
+              
+              // Store reference
+              this.doorSprites.push(doorTile);
+          }
+          
+          // Create wall tile to the right of the door (if not at edge)
+          if (doorGridX + 2 < gridWidth) {
+              const rightWallWorldX = (doorGridX + 2) * scaledTileSize;
+              const rightWallFrame = Phaser.Utils.Array.GetRandom(topWallFrames);
+              const rightWallTile = this.add.sprite(rightWallWorldX, doorWorldY, 'dungeon', rightWallFrame);
+              
+              rightWallTile.setScale(scale);
+              rightWallTile.setOrigin(0, 0);
+              rightWallTile.setDepth(-9);
+              
+              this.physics.add.existing(rightWallTile, true);
+              rightWallTile.body.setSize(scaledTileSize, scaledTileSize * 0.3);
+              rightWallTile.body.setOffset(0, 0);
+              
+              this.walls.add(rightWallTile);
+              this.doorSprites.push(rightWallTile);
+          }
+     }
+
+     spawnWalls(tileSize, gridWidth, playableGridHeight, scale) {
+          // Create a physics group for walls
+          if (!this.walls) {
+              this.walls = this.physics.add.staticGroup();
+          } else {
+              // Clear existing walls if any
+              this.walls.children.entries.forEach(wall => wall.destroy());
+              this.walls.clear();
+          }
 
          // Top wall frames (0-5) and bottom wall frames (40-44)
          const topWallFrames = [1, 2, 3, 4];
@@ -1577,11 +1702,14 @@ class MainScene extends Phaser.Scene {
           rightWall.body.setSize(scaledTileSize, scaledTileSize);
            rightWall.body.setOffset(0, 0);
 
-             // Generate peninsulas (walls protruding from sides)
-             // Use current level config if available, otherwise null
-             const currentLevelConfig = this.levels && this.currentLevelIndex >= 0 ? this.levels[this.currentLevelIndex] : null;
-             this.generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, currentLevelConfig);
-        }
+              // Generate peninsulas (walls protruding from sides)
+              // Use current level config if available, otherwise null
+              const currentLevelConfig = this.levels && this.currentLevelIndex >= 0 ? this.levels[this.currentLevelIndex] : null;
+              this.generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, currentLevelConfig);
+
+              // Spawn door on the bottom wall
+              this.spawnDoor(tileSize, gridWidth, scale);
+         }
 
         generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, levelConfig) {
             // Clear any existing peninsula wall sprites from the walls group
