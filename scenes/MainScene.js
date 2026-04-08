@@ -1591,7 +1591,7 @@ class MainScene extends Phaser.Scene {
           }
      }
 
-     spawnWalls(tileSize, gridWidth, playableGridHeight, scale) {
+      spawnWalls(tileSize, gridWidth, playableGridHeight, scale) {
           // Create a physics group for walls
           if (!this.walls) {
               this.walls = this.physics.add.staticGroup();
@@ -1601,49 +1601,69 @@ class MainScene extends Phaser.Scene {
               this.walls.clear();
           }
 
-         // Top wall frames (0-5) and bottom wall frames (40-44)
-         const topWallFrames = [1, 2, 3, 4];
-         const bottomWallFrames = [41, 42, 43, 44];
-         // Left side wall frames (random) and right side wall frames (random)
-         const leftWallFrames = [10, 20, 30];
-         const rightWallFrames = [15, 25, 35];
-         const scaledTileSize = tileSize * scale;
+          // Top wall frames (0-5) and bottom wall frames (40-44)
+          const topWallFrames = [1, 2, 3, 4];
+          const bottomWallFrames = [41, 42, 43, 44];
+          // Left side wall frames (random) and right side wall frames (random)
+          const leftWallFrames = [10, 20, 30];
+          const rightWallFrames = [15, 25, 35];
+          const scaledTileSize = tileSize * scale;
 
-         // Add top row walls (y = 0)
-         for (let x = 0; x < gridWidth; x++) {
-             const randomFrame = Phaser.Utils.Array.GetRandom(topWallFrames);
-             const wall = this.add.sprite(x * scaledTileSize, 0, 'dungeon', randomFrame);
-             wall.setScale(scale);
-             wall.setOrigin(0, 0);
-             wall.setDepth(-9); // Just above background tiles
-             this.walls.add(wall);
-             
-             // Add physics body for top walls with collision at the top edge
-             this.physics.add.existing(wall, true); // true = isStatic
-             // Set body size to be thin at the top for collision detection
-             // Height is small so collision only occurs at top edge
-             wall.body.setSize(scaledTileSize, scaledTileSize * 0.3);
-             // Offset so the collision box is at the top of the sprite
-             wall.body.setOffset(0, 0);
-         }
+          // Pre-calculate door position to know which tiles to skip
+          const doorGridX = this.findValidDoorPosition(gridWidth, scale);
+          const doorTilesToSkip = new Set();
+          
+          // Add door tiles to skip set (left wall, door left, door right, right wall)
+          if (doorGridX > 0) {
+              doorTilesToSkip.add(doorGridX - 1);
+          }
+          doorTilesToSkip.add(doorGridX);
+          doorTilesToSkip.add(doorGridX + 1);
+          if (doorGridX + 2 < gridWidth) {
+              doorTilesToSkip.add(doorGridX + 2);
+          }
 
-         // Add bottom row walls at the screen bottom (excluding corner positions for left and right)
-         const bottomY = 600 - scaledTileSize;
-         for (let x = 1; x < gridWidth - 1; x++) {
-             const randomFrame = Phaser.Utils.Array.GetRandom(bottomWallFrames);
-             const wall = this.add.sprite(x * scaledTileSize, bottomY, 'dungeon', randomFrame);
-             wall.setScale(scale);
-             wall.setOrigin(0, 0);
-             wall.setDepth(-9); // Just above background tiles
-             this.walls.add(wall);
-             
-             // Add physics body for bottom walls with collision at the top edge
-             this.physics.add.existing(wall, true); // true = isStatic
-             // Set body size and offset so collision happens at the top of the wall
-             wall.body.setSize(scaledTileSize, scaledTileSize * 0.3);
-             // Offset so collision box is at the top of the sprite
-             wall.body.setOffset(0, 0);
-         }
+          // Add top row walls (y = 0)
+          for (let x = 0; x < gridWidth; x++) {
+              const randomFrame = Phaser.Utils.Array.GetRandom(topWallFrames);
+              const wall = this.add.sprite(x * scaledTileSize, 0, 'dungeon', randomFrame);
+              wall.setScale(scale);
+              wall.setOrigin(0, 0);
+              wall.setDepth(-9); // Just above background tiles
+              this.walls.add(wall);
+              
+              // Add physics body for top walls with collision at the top edge
+              this.physics.add.existing(wall, true); // true = isStatic
+              // Set body size to be thin at the top for collision detection
+              // Height is small so collision only occurs at top edge
+              wall.body.setSize(scaledTileSize, scaledTileSize * 0.3);
+              // Offset so the collision box is at the top of the sprite
+              wall.body.setOffset(0, 0);
+          }
+
+          // Add bottom row walls at the screen bottom (excluding corner positions for left and right)
+          // Also skip positions where the door will be placed
+          const bottomY = 600 - scaledTileSize;
+          for (let x = 1; x < gridWidth - 1; x++) {
+              // Skip this tile if it's part of the door structure
+              if (doorTilesToSkip.has(x)) {
+                  continue;
+              }
+              
+              const randomFrame = Phaser.Utils.Array.GetRandom(bottomWallFrames);
+              const wall = this.add.sprite(x * scaledTileSize, bottomY, 'dungeon', randomFrame);
+              wall.setScale(scale);
+              wall.setOrigin(0, 0);
+              wall.setDepth(-9); // Just above background tiles
+              this.walls.add(wall);
+              
+              // Add physics body for bottom walls with collision at the top edge
+              this.physics.add.existing(wall, true); // true = isStatic
+              // Set body size and offset so collision happens at the top of the wall
+              wall.body.setSize(scaledTileSize, scaledTileSize * 0.3);
+              // Offset so collision box is at the top of the sprite
+              wall.body.setOffset(0, 0);
+          }
 
           // Add left column walls (x = 0)
           for (let y = 0; y < playableGridHeight - 1; y++) {
