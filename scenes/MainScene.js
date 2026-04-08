@@ -707,15 +707,21 @@ class MainScene extends Phaser.Scene {
                            sprite.destroy();
                        }
                    });
-                   this.peninsulaSprites.clear();
-               }
+                    this.peninsulaSprites.clear();
+                }
 
-                  // Regenerate peninsulas for this level
-                  if (this.wallGenerationParams) {
-                      const { tileSize, gridWidth, playableGridHeight, scale } = this.wallGenerationParams;
-                      const levelConfig = this.levels[this.currentLevelIndex];
-                      this.generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, levelConfig);
-                  }
+                   // Regenerate walls for this level (before peninsulas so door position is set)
+                   if (this.wallGenerationParams) {
+                       const { tileSize, gridWidth, playableGridHeight, scale } = this.wallGenerationParams;
+                       this.spawnWalls(tileSize, gridWidth, playableGridHeight, scale);
+                   }
+
+                   // Regenerate peninsulas for this level
+                   if (this.wallGenerationParams) {
+                       const { tileSize, gridWidth, playableGridHeight, scale } = this.wallGenerationParams;
+                       const levelConfig = this.levels[this.currentLevelIndex];
+                       this.generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, levelConfig);
+                   }
 
                // Spawn new enemies based on current level configuration
             const levelConfig = this.levels[this.currentLevelIndex];
