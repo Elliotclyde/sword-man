@@ -688,23 +688,34 @@ class MainScene extends Phaser.Scene {
                this.bones.clear();
            }
 
-             // Remove all wall decorations (includes torches)
-             if (this.wallDecorations) {
-                 const wallDecorationsToDestroy = [...this.wallDecorations.children.entries];
-                 wallDecorationsToDestroy.forEach(decoration => {
-                     if (decoration && !decoration.destroyed) {
-                         decoration.destroy();
-                     }
-                 });
-                 this.wallDecorations.clear();
-              }
+              // Remove all wall decorations (includes torches)
+              if (this.wallDecorations) {
+                  const wallDecorationsToDestroy = [...this.wallDecorations.children.entries];
+                  wallDecorationsToDestroy.forEach(decoration => {
+                      if (decoration && !decoration.destroyed) {
+                          decoration.destroy();
+                      }
+                  });
+                  this.wallDecorations.clear();
+               }
 
-                // Regenerate peninsulas for this level
-                if (this.wallGenerationParams) {
-                    const { tileSize, gridWidth, gridHeight, scale } = this.wallGenerationParams;
-                    const levelConfig = this.levels[this.currentLevelIndex];
-                    this.generatePeninsulas(tileSize, gridWidth, gridHeight, scale, levelConfig);
-                }
+               // Remove all peninsula sprites
+               if (this.peninsulaSprites) {
+                   const peninsulaSpritesToDestroy = [...this.peninsulaSprites.children.entries];
+                   peninsulaSpritesToDestroy.forEach(sprite => {
+                       if (sprite && !sprite.destroyed) {
+                           sprite.destroy();
+                       }
+                   });
+                   this.peninsulaSprites.clear();
+               }
+
+                  // Regenerate peninsulas for this level
+                  if (this.wallGenerationParams) {
+                      const { tileSize, gridWidth, playableGridHeight, scale } = this.wallGenerationParams;
+                      const levelConfig = this.levels[this.currentLevelIndex];
+                      this.generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, levelConfig);
+                  }
 
                // Spawn new enemies based on current level configuration
             const levelConfig = this.levels[this.currentLevelIndex];
@@ -921,29 +932,63 @@ class MainScene extends Phaser.Scene {
           }
       }
 
-       handleEnemyWallCollision(enemy, wall) {
-           const currentTime = this.time.now;
-           const timeSinceLastEdgeHit = currentTime - enemy.lastEdgeHitTime;
+        handleEnemyWallCollision(enemy, wall) {
+            const currentTime = this.time.now;
+            const timeSinceLastEdgeHit = currentTime - enemy.lastEdgeHitTime;
 
-           // Only allow direction reversal if more than 50ms has passed since last edge hit
-           if (timeSinceLastEdgeHit > 50) {
-               // Detect which wall was hit based on position
-               if (wall.x < 100) {
-                   // Left wall - reverse to move rightward
-                   enemy.direction.x = Math.abs(enemy.direction.x);
-               } else if (wall.x > 700) {
-                   // Right wall - reverse to move leftward
-                   enemy.direction.x = -Math.abs(enemy.direction.x);
-               } else if (wall.y < 100) {
-                   // Top wall - reverse to move downward
-                   enemy.direction.y = Math.abs(enemy.direction.y);
-               } else if (wall.y > 500) {
-                   // Bottom wall - reverse to move upward
-                   enemy.direction.y = -Math.abs(enemy.direction.y);
-               }
-               enemy.lastEdgeHitTime = currentTime;
-           }
-       }
+            // Only allow direction reversal if more than 50ms has passed since last edge hit
+            if (timeSinceLastEdgeHit > 50) {
+                // Check if this is a peninsula wall
+                if (wall.isPeninsulaWall) {
+                    // For peninsula walls, determine which side was hit by comparing positions
+                    const wallCenterX = wall.x;
+                    const wallCenterY = wall.y;
+                    const enemyCenterX = enemy.x;
+                    const enemyCenterY = enemy.y;
+
+                    // Calculate distance in each direction
+                    const distX = Math.abs(enemyCenterX - wallCenterX);
+                    const distY = Math.abs(enemyCenterY - wallCenterY);
+
+                    // Determine which side was hit (the smaller distance is the side hit)
+                    if (distX > distY) {
+                        // Horizontal collision (hit left or right side)
+                        if (enemyCenterX < wallCenterX) {
+                            // Enemy is to the left of wall - push left
+                            enemy.direction.x = -Math.abs(enemy.direction.x);
+                        } else {
+                            // Enemy is to the right of wall - push right
+                            enemy.direction.x = Math.abs(enemy.direction.x);
+                        }
+                    } else {
+                        // Vertical collision (hit top or bottom side)
+                        if (enemyCenterY < wallCenterY) {
+                            // Enemy is above wall - push up
+                            enemy.direction.y = -Math.abs(enemy.direction.y);
+                        } else {
+                            // Enemy is below wall - push down
+                            enemy.direction.y = Math.abs(enemy.direction.y);
+                        }
+                    }
+                } else {
+                    // Outer wall collision - use screen edge detection
+                    if (wall.x < 100) {
+                        // Left wall - reverse to move rightward
+                        enemy.direction.x = Math.abs(enemy.direction.x);
+                    } else if (wall.x > 700) {
+                        // Right wall - reverse to move leftward
+                        enemy.direction.x = -Math.abs(enemy.direction.x);
+                    } else if (wall.y < 100) {
+                        // Top wall - reverse to move downward
+                        enemy.direction.y = Math.abs(enemy.direction.y);
+                    } else if (wall.y > 500) {
+                        // Bottom wall - reverse to move upward
+                        enemy.direction.y = -Math.abs(enemy.direction.y);
+                    }
+                }
+                enemy.lastEdgeHitTime = currentTime;
+            }
+        }
 
        winGame() {
      if(this.gameIsOver){
@@ -1069,37 +1114,40 @@ class MainScene extends Phaser.Scene {
            this.enemies.clear();
     }
 
-     create() {
-         // Set up pause key
-         this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-         this.escapeKey.on('down', () => this.togglePause());
+      create() {
+          // Set up pause key
+          this.escapeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+          this.escapeKey.on('down', () => this.togglePause());
 
-           // Create a 20x20 grid of random dungeon tiles
-           const tileSize = 16; // Each tile is 16x16
-           const gridWidth = 20;
-           const gridHeight = 20;
-           const scaleX = 800 / (gridWidth * tileSize); // Scale to fit the game width
-           const scaleY = 600 / (gridHeight * tileSize); // Scale to fit the game height
-           const scale = Math.max(scaleX, scaleY); // Use the larger scale to fill the screen
-           
-           // Store wall generation parameters as instance variables for later use
-           this.tileScale = scale; // Store scale as instance variable for later use
-           this.wallGenerationParams = { tileSize, gridWidth, gridHeight, scale };
-           this.peninsulas = []; // Track all peninsulas for collision detection
+            // Create a 20x15 grid of random dungeon tiles (20 wide, 15 tall for visible area)
+            const tileSize = 16; // Each tile is 16x16
+            const gridWidth = 20;
+            const PLAYABLE_GRID_HEIGHT = 15; // Only render visible rows
+            const scaleX = 800 / (gridWidth * tileSize); // Scale to fit the game width
+            const scaleY = 600 / (PLAYABLE_GRID_HEIGHT * tileSize); // Scale to fit the game height
+            const scale = Math.max(scaleX, scaleY); // Use the larger scale to fill the screen
+            
+             // Store wall generation parameters as instance variables for later use
+              this.tileScale = scale; // Store scale as instance variable for later use
+              this.wallGenerationParams = { tileSize, gridWidth, playableGridHeight: PLAYABLE_GRID_HEIGHT, scale };
+              this.peninsulas = []; // Track all peninsulas for collision detection
+              this.peninsulaGraphics = this.add.graphics();
+              this.peninsulaGraphics.setDepth(-8); // Render above bounding walls
+              this.peninsulaSprites = this.add.group(); // Group to track peninsula corner sprites for cleanup
 
-         for (let y = 0; y < gridHeight; y++) {
-            for (let x = 0; x < gridWidth; x++) {
-                // Pick a random frame from the 1x1 to 4x4 area (frames 0-15)
-                const randomFrame = Phaser.Math.Between(6, 9);
-                const tile = this.add.sprite(x * tileSize * scale, y * tileSize * scale, 'dungeon', randomFrame);
-                tile.setScale(scale);
-                tile.setOrigin(0, 0); // Position from top-left corner
-                tile.setDepth(-10); // Render tiles under everything
-            }
-        }
+          for (let y = 0; y < PLAYABLE_GRID_HEIGHT; y++) {
+             for (let x = 0; x < gridWidth; x++) {
+                 // Pick a random frame from the 1x1 to 4x4 area (frames 0-15)
+                 const randomFrame = Phaser.Math.Between(6, 9);
+                 const tile = this.add.sprite(x * tileSize * scale, y * tileSize * scale, 'dungeon', randomFrame);
+                 tile.setScale(scale);
+                 tile.setOrigin(0, 0); // Position from top-left corner
+                 tile.setDepth(-10); // Render tiles under everything
+             }
+         }
 
-        // Spawn walls on top and bottom rows
-        this.spawnWalls(tileSize, gridWidth, gridHeight, scale);
+         // Spawn walls on top and bottom rows
+         this.spawnWalls(tileSize, gridWidth, PLAYABLE_GRID_HEIGHT, scale);
 
         // Create game objects here
         // Create standing animation (frames 0-5 from the top row)
@@ -1418,7 +1466,7 @@ class MainScene extends Phaser.Scene {
          }
      }
 
-    spawnWalls(tileSize, gridWidth, gridHeight, scale) {
+    spawnWalls(tileSize, gridWidth, playableGridHeight, scale) {
          // Create a physics group for walls
          if (!this.walls) {
              this.walls = this.physics.add.staticGroup();
@@ -1472,8 +1520,8 @@ class MainScene extends Phaser.Scene {
              wall.body.setOffset(0, 0);
          }
 
-         // Add left column walls (x = 0)
-         for (let y = 0; y < gridHeight - 1; y++) {
+          // Add left column walls (x = 0)
+          for (let y = 0; y < playableGridHeight - 1; y++) {
              // Use random sprites for all positions in the left column
              const randomFrame = Phaser.Utils.Array.GetRandom(leftWallFrames);
              const wall = this.add.sprite(0, y * scaledTileSize, 'dungeon', randomFrame);
@@ -1500,9 +1548,9 @@ class MainScene extends Phaser.Scene {
          wall.body.setSize(scaledTileSize, scaledTileSize);
          wall.body.setOffset(0, 0);
 
-         // Add right column walls (x = rightmost position)
-         const rightX = 800 - scaledTileSize;
-         for (let y = 0; y < gridHeight - 1; y++) {
+          // Add right column walls (x = rightmost position)
+          const rightX = 800 - scaledTileSize;
+          for (let y = 0; y < playableGridHeight - 1; y++) {
              // Use random sprites for all positions in the right column
              const randomFrame = Phaser.Utils.Array.GetRandom(rightWallFrames);
              const wall = this.add.sprite(rightX, y * scaledTileSize, 'dungeon', randomFrame);
@@ -1529,21 +1577,22 @@ class MainScene extends Phaser.Scene {
           rightWall.body.setSize(scaledTileSize, scaledTileSize);
            rightWall.body.setOffset(0, 0);
 
-            // Generate peninsulas (walls protruding from sides)
-            // Use current level config if available, otherwise null
-            const currentLevelConfig = this.levels && this.currentLevelIndex >= 0 ? this.levels[this.currentLevelIndex] : null;
-            this.generatePeninsulas(tileSize, gridWidth, gridHeight, scale, currentLevelConfig);
+             // Generate peninsulas (walls protruding from sides)
+             // Use current level config if available, otherwise null
+             const currentLevelConfig = this.levels && this.currentLevelIndex >= 0 ? this.levels[this.currentLevelIndex] : null;
+             this.generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, currentLevelConfig);
         }
 
-        generatePeninsulas(tileSize, gridWidth, gridHeight, scale, levelConfig) {
+        generatePeninsulas(tileSize, gridWidth, playableGridHeight, scale, levelConfig) {
             // Clear any existing peninsula wall sprites from the walls group
             if (this.peninsulas && this.peninsulas.length > 0) {
-                // Destroy all wall sprites that belong to peninsulas
+                // Destroy all wall zones that belong to peninsulas
                 this.peninsulas.forEach(peninsula => {
                     peninsula.tiles.forEach(tile => {
-                        // Find and destroy the wall sprite at this position
+                        // Find and destroy the wall zone at this position
                         const wallsToRemove = this.walls.children.entries.filter(wall => {
-                            return Math.abs(wall.x - tile.pixelX) < 1 && Math.abs(wall.y - tile.pixelY) < 1;
+                            return Math.abs(wall.x - (tile.pixelX + tile.pixelSize / 2)) < 1 && 
+                                   Math.abs(wall.y - (tile.pixelY + tile.pixelSize / 2)) < 1;
                         });
                         wallsToRemove.forEach(wall => {
                             this.walls.remove(wall);
@@ -1559,14 +1608,12 @@ class MainScene extends Phaser.Scene {
             const scaledTileSize = tileSize * scale;
             const bottomWallY = 600 - scaledTileSize;
             const rightWallX = 800 - scaledTileSize;
-            
-            // Wall frame options
-            const leftWallFrames = [10, 20, 30];
-            const rightWallFrames = [15, 25, 35];
-            const bottomWallFrames = [41, 42, 43, 44];
+
+            // Clear the graphics before drawing new peninsulas
+            this.peninsulaGraphics.clear();
 
             // Randomly decide number of peninsulas (0-2)
-            const peninsulaCount = Phaser.Math.Between(0, 2);
+            const peninsulaCount = Phaser.Math.Between(1, 2);
 
             // Convert player spawn position to grid coordinates
             // Buffer zone: 3 tiles (75 pixels at 25px/tile with scale 1) around player spawn
@@ -1575,175 +1622,219 @@ class MainScene extends Phaser.Scene {
             const playerSpawnGridY = levelConfig ? Math.floor(levelConfig.playerStartY / scaledTileSize) : -1;
 
              for (let p = 0; p < peninsulaCount; p++) {
-                 // Random dimensions between 4x4 and 8x8 tiles
-                 let peninsulaWidth = Phaser.Math.Between(2, 6);
-                 const peninsulaHeight = Phaser.Math.Between(2, 6);
+                  let peninsulaCreated = false;
+                  const maxAttempts = 3;
 
-                 // Ensure peninsula fits with 1-tile gaps on both sides
-                 // Grid: [0:wall][1:gap]...[18:gap][19:wall]
-                 // Available: 17 tiles (columns 1-18)
-                 const maxPeninsulaWidth = gridWidth - 3; // 20 - 3 = 17
-                 peninsulaWidth = Math.min(peninsulaWidth, maxPeninsulaWidth);
+                  // Attempt to create peninsula up to 3 times
+                  for (let attempt = 0; attempt < maxAttempts && !peninsulaCreated; attempt++) {
+                      let peninsulaWidth = Phaser.Math.Between(3, 6);
+                      const peninsulaHeight = Phaser.Math.Between(3, 6);
 
-                 // Randomly choose which side (left or right)
-                 const side = Phaser.Math.RND.pick(['left', 'right']);
+                      // Ensure peninsula fits with 1-tile gaps on both sides
+                      // Grid: [0:wall][1:gap]...[18:gap][19:wall]
+                      // Available: 17 tiles (columns 1-18)
+                      const maxPeninsulaWidth = gridWidth - 3; // 20 - 3 = 17
+                      peninsulaWidth = Math.min(peninsulaWidth, maxPeninsulaWidth);
 
-                // Calculate valid Y range (avoid corners: keep 3+ tiles from top/bottom)
-                const minGridY = 3;
-                const maxGridY = gridHeight - 3 - peninsulaHeight;
+                      // Randomly choose which side (left or right)
+                      const side = Phaser.Math.RND.pick(['left', 'right']);
 
-                // Only create peninsula if there's valid space vertically
-                if (maxGridY <= minGridY) {
-                    continue;
-                }
+                      // Calculate valid Y range (allow peninsulas to extend to bottom boundary)
+                      const minGridY = 2;
+                      const maxGridY = playableGridHeight - peninsulaHeight - 2;
 
-                const gridY = Phaser.Math.Between(minGridY, maxGridY);
+                      // Only create peninsula if there's valid space vertically
+                      if (maxGridY <= minGridY) {
+                          continue;
+                      }
 
-                 // Determine grid X based on side
-                 // Peninsulas should extend INTO the playable area with 1-tile gaps from walls
-                 let gridX;
-                 if (side === 'left') {
-                     gridX = 0; // 1-tile gap from left wall at column 0
-                 } else {
-                     gridX = gridWidth - peninsulaWidth; // 1-tile gap before right wall at column 19
-                 }
+                      const gridY = Phaser.Math.Between(minGridY, maxGridY);
 
-                // Check if peninsula collides with player spawn area
-                let collideWithSpawn = false;
-                if (levelConfig && playerSpawnGridX >= 0 && playerSpawnGridY >= 0) {
-                    // Check if any tile of the peninsula is too close to player spawn
-                    for (let tx = 0; tx < peninsulaWidth && !collideWithSpawn; tx++) {
-                        for (let ty = 0; ty < peninsulaHeight && !collideWithSpawn; ty++) {
-                            const penGridX = gridX + tx;
-                            const penGridY = gridY + ty;
-                            
-                            // Calculate distance from player spawn
-                            const distX = Math.abs(penGridX - playerSpawnGridX);
-                            const distY = Math.abs(penGridY - playerSpawnGridY);
-                            
-                            // If distance is less than buffer zone, it collides
-                            if (distX < playerSpawnBuffer && distY < playerSpawnBuffer) {
-                                collideWithSpawn = true;
-                            }
-                        }
-                    }
-                }
+                      // Determine grid X based on side
+                      // Peninsulas should extend INTO the playable area with 1-tile gaps from walls
+                      let gridX;
+                      if (side === 'left') {
+                          gridX = 0; // 1-tile gap from left wall at column 0
+                      } else {
+                          gridX = gridWidth - peninsulaWidth; // 1-tile gap before right wall at column 19
+                      }
 
-                // Skip this peninsula if it collides with player spawn
-                if (collideWithSpawn) {
-                    continue;
-                }
-
-                 // Store peninsula metadata
-                 const peninsula = {
-                     side,
-                     gridX,
-                     gridY,
-                     gridWidth: peninsulaWidth,
-                     gridHeight: peninsulaHeight,
-                     tiles: []
-                 };
-
-                 // Create all tiles for this peninsula
-                 for (let ty = 0; ty < peninsulaHeight; ty++) {
-                     for (let tx = 0; tx < peninsulaWidth; tx++) {
-                         const currentGridX = gridX + tx;
-                         const currentGridY = gridY + ty;
-                         const pixelX = currentGridX * scaledTileSize;
-                         const pixelY = currentGridY * scaledTileSize;
-
-                          // Determine frame based on position
-                          let frame;
-                          const isBottom = (currentGridY === gridY + peninsulaHeight - 1);
-                          const isTop = (currentGridY === gridY);
-                          const isRight = (tx === peninsulaWidth - 1);
-                          const isLeft = (tx === 0);
-                          
-                          // Check if tile is on the perimeter (edges)
-                          const isPerimeter = isLeft || isRight || isTop || isBottom;
-                          
-                          // Helper function to check if a grid position is a game tile (playable area)
-                          const isGameTile = (gx, gy) => {
-                              // Game tiles are in the playable area: columns 1-18, rows 1-22
-                              return gx > 0 && gx < gridWidth - 1 && gy > 0 && gy < gridHeight - 1;
-                          };
-                          
-                          // For edge tiles, check if they touch only walls (not game tiles)
-                          let touchesOnlyWalls = false;
-                          if (isPerimeter) {
-                              touchesOnlyWalls = true;
-                              
-                              // Check all 4 neighbors
-                              const neighbors = [
-                                  [currentGridX - 1, currentGridY], // left
-                                  [currentGridX + 1, currentGridY], // right
-                                  [currentGridX, currentGridY - 1], // top
-                                  [currentGridX, currentGridY + 1]  // bottom
-                              ];
-                              
-                              for (const [nx, ny] of neighbors) {
-                                  // If neighbor is a game tile (and not part of this peninsula), then this edge tile touches game tile
-                                  const isNeighborGameTile = isGameTile(nx, ny);
-                                  const isNeighborPeninsula = (nx >= gridX && nx < gridX + peninsulaWidth &&
-                                                               ny >= gridY && ny < gridY + peninsulaHeight);
+                      // Check if peninsula collides with player spawn area
+                      let collideWithSpawn = false;
+                      if (levelConfig && playerSpawnGridX >= 0 && playerSpawnGridY >= 0) {
+                          // Check if any tile of the peninsula is too close to player spawn
+                          for (let tx = 0; tx < peninsulaWidth && !collideWithSpawn; tx++) {
+                              for (let ty = 0; ty < peninsulaHeight && !collideWithSpawn; ty++) {
+                                  const penGridX = gridX + tx;
+                                  const penGridY = gridY + ty;
                                   
-                                  if (isNeighborGameTile && !isNeighborPeninsula) {
-                                      touchesOnlyWalls = false;
-                                      break;
+                                  // Calculate distance from player spawn
+                                  const distX = Math.abs(penGridX - playerSpawnGridX);
+                                  const distY = Math.abs(penGridY - playerSpawnGridY);
+                                  
+                                  // If distance is less than buffer zone, it collides
+                                  if (distX < playerSpawnBuffer && distY < playerSpawnBuffer) {
+                                      collideWithSpawn = true;
                                   }
                               }
                           }
-                          
-                          // Internal tiles and edge tiles touching only walls use frame 78
-                          if (!isPerimeter || touchesOnlyWalls) {
-                              frame = 78;
-                          } else if (isBottom) {
-                              // Bottom row uses bottom wall frames or corners
-                              if (isLeft && side === 'left') {
-                                  frame = 40; // Bottom-left corner for left peninsulas
-                              } else if (isRight && side === 'right') {
-                                  frame = 45; // Bottom-right corner for right peninsulas
-                              } else {
-                                  frame = 1
-                              }
-                          } else if (isTop) {
-                                frame = 51
-                          } else if (side === 'left') {
-                              // Left peninsulas use left wall frames
-                              frame = Phaser.Utils.Array.GetRandom(leftWallFrames);
-                          } else {
-                              // Right peninsulas use right wall frames
-                              frame = Phaser.Utils.Array.GetRandom(rightWallFrames);
+                      }
+
+                      // Skip this attempt if it collides with player spawn
+                      if (collideWithSpawn) {
+                          continue;
+                      }
+
+                      // Check if peninsula overlaps with already-placed peninsulas (with 2-tile buffer)
+                      let overlapsWithOtherPeninsula = false;
+                      const bufferZone = 2;
+                      for (const existingPeninsula of this.peninsulas) {
+                          // Get bounds of both peninsulas with buffer zones
+                          const existMinX = existingPeninsula.gridX - bufferZone;
+                          const existMaxX = existingPeninsula.gridX + existingPeninsula.gridWidth + bufferZone;
+                          const existMinY = existingPeninsula.gridY - bufferZone;
+                          const existMaxY = existingPeninsula.gridY + existingPeninsula.gridHeight + bufferZone;
+
+                          const newMinX = gridX - bufferZone;
+                          const newMaxX = gridX + peninsulaWidth + bufferZone;
+                          const newMinY = gridY - bufferZone;
+                          const newMaxY = gridY + peninsulaHeight + bufferZone;
+
+                          // Check for overlap
+                          if (!(newMaxX < existMinX || newMinX > existMaxX || 
+                                newMaxY < existMinY || newMinY > existMaxY)) {
+                              overlapsWithOtherPeninsula = true;
+                              break;
                           }
+                      }
 
-                         // Create wall sprite
-                         const wall = this.add.sprite(pixelX, pixelY, 'dungeon', frame);
-                         wall.setScale(scale);
-                         wall.setOrigin(0, 0);
-                         wall.setDepth(-9); // Same depth as other walls
-                         this.walls.add(wall);
+                      // Skip this attempt if it overlaps with other peninsulas
+                      if (overlapsWithOtherPeninsula) {
+                          continue;
+                      }
 
-                         // Add physics body
-                         this.physics.add.existing(wall, true); // Static
-                         
-                         // Use full collision for peninsula tiles
-                         wall.body.setSize(scaledTileSize, scaledTileSize);
-                         wall.body.setOffset(0, 0);
+                      // Store peninsula metadata
+                      const peninsula = {
+                          side,
+                          gridX,
+                          gridY,
+                          gridWidth: peninsulaWidth,
+                          gridHeight: peninsulaHeight,
+                          tiles: []
+                      };
 
-                         // Track tile in peninsula data
-                         peninsula.tiles.push({
-                             gridX: currentGridX,
-                             gridY: currentGridY,
-                             pixelX,
-                             pixelY
-                         });
-                     }
-                 }
+                      peninsulaCreated = true;
 
-                 // Store peninsula
-                 this.peninsulas.push(peninsula);
-             }
-        }
+                      // Create all tiles for this peninsula
+                      for (let ty = 0; ty < peninsulaHeight; ty++) {
+                          for (let tx = 0; tx < peninsulaWidth; tx++) {
+                              const currentGridX = gridX + tx;
+                              const currentGridY = gridY + ty;
+                              const pixelX = currentGridX * scaledTileSize;
+                              const pixelY = currentGridY * scaledTileSize;
+
+                              const isBottom = ty === peninsulaHeight - 1;
+                              const isTop = ty === 0;
+                              const isLeft = tx === 0;
+                              const isRight = tx === peninsulaWidth - 1;
+
+                         // Determine if this tile is a corner that needs sprite rendering
+                         const isTopLeftCorner = (isLeft && isTop);
+                         const isTopRightCorner = (isRight && isTop);
+                         const isBottomLeftCorner = (isLeft && isBottom);
+                         const isBottomRightCorner = (isRight  && isBottom);
+
+                         // For corners, create sprites with appropriate frames based on side
+                         if (isTopLeftCorner) {
+                             const cornerFrame = side === 'left' ? 40 : 54;
+                             const cornerSprite = this.add.sprite(pixelX, pixelY, 'dungeon', cornerFrame);
+                             cornerSprite.setScale(this.tileScale);
+                             cornerSprite.setOrigin(0, 0);
+                             cornerSprite.setDepth(-8); // Same depth as peninsula graphics
+                             this.peninsulaSprites.add(cornerSprite);
+                          } else if (isTopRightCorner) {
+                              const cornerFrame = side === 'left' ? 53 : 45;
+                              const cornerSprite = this.add.sprite(pixelX, pixelY, 'dungeon', cornerFrame);
+                             cornerSprite.setScale(this.tileScale);
+                             cornerSprite.setOrigin(0, 0);
+                             cornerSprite.setDepth(-8); // Same depth as peninsula graphics
+                             this.peninsulaSprites.add(cornerSprite);
+                         } else if (isBottomLeftCorner) {
+                             const cornerFrame = side === 'left' ? 10 : 1;
+                             const cornerSprite = this.add.sprite(pixelX, pixelY, 'dungeon', cornerFrame);
+                             cornerSprite.setScale(this.tileScale);
+                             cornerSprite.setOrigin(0, 0);
+                             cornerSprite.setDepth(-8); // Same depth as peninsula graphics
+                             this.peninsulaSprites.add(cornerSprite);
+                         } else if (isBottomRightCorner) {
+                             const cornerFrame = side === 'left' ? 1 : 5;
+                             const cornerSprite = this.add.sprite(pixelX, pixelY, 'dungeon', cornerFrame);
+                             cornerSprite.setScale(this.tileScale);
+                             cornerSprite.setOrigin(0, 0);
+                             cornerSprite.setDepth(-8); // Same depth as peninsula graphics
+                             this.peninsulaSprites.add(cornerSprite);
+                         } else if (isBottom) {
+                             const frame = 1;
+                             const wallSprite = this.add.sprite(pixelX, pixelY, 'dungeon', frame);
+                             wallSprite.setScale(this.tileScale);
+                             wallSprite.setOrigin(0, 0);
+                             wallSprite.setDepth(-8); // Same depth as peninsula graphics
+                             this.peninsulaSprites.add(wallSprite);
+                         } else if (isTop) {
+                             const frame = 41;
+                             const wallSprite = this.add.sprite(pixelX, pixelY, 'dungeon', frame);
+                             wallSprite.setScale(this.tileScale);
+                             wallSprite.setOrigin(0, 0);
+                             wallSprite.setDepth(-8); // Same depth as peninsula graphics
+                             this.peninsulaSprites.add(wallSprite);
+                         } else if (isLeft) {
+                             const frame  = side === 'left' ? 78 : 5;
+                             const wallSprite = this.add.sprite(pixelX, pixelY, 'dungeon', frame);
+                             wallSprite.setScale(this.tileScale);
+                             wallSprite.setOrigin(0, 0);
+                             wallSprite.setDepth(-8); // Same depth as peninsula graphics
+                             this.peninsulaSprites.add(wallSprite);
+                         } else if (isRight) {
+                             const frame = side === 'left' ? 10 : 78;
+                             const wallSprite = this.add.sprite(pixelX, pixelY, 'dungeon', frame);
+                             wallSprite.setScale(this.tileScale);
+                             wallSprite.setOrigin(0, 0);
+                             wallSprite.setDepth(-8); // Same depth as peninsula graphics
+                             this.peninsulaSprites.add(wallSprite);
+                         } else {
+                             const frame = 78;
+                             const wallSprite = this.add.sprite(pixelX, pixelY, 'dungeon', frame);
+                             wallSprite.setScale(this.tileScale);
+                             wallSprite.setOrigin(0, 0);
+                             wallSprite.setDepth(-8); // Same depth as peninsula graphics
+                             this.peninsulaSprites.add(wallSprite);
+                         }
+
+                        // Add physics body for collision
+                        const rectangle = new Phaser.Geom.Rectangle(pixelX, pixelY, scaledTileSize, scaledTileSize);
+                        const wall = this.add.zone(pixelX + scaledTileSize / 2, pixelY + scaledTileSize / 2, scaledTileSize, scaledTileSize);
+                        this.physics.add.existing(wall, true); // Static
+                        wall.body.setSize(scaledTileSize, scaledTileSize);
+                        wall.body.setOffset(-scaledTileSize / 2, -scaledTileSize / 2);
+                        wall.isPeninsulaWall = true; // Mark this as a peninsula wall for collision handling
+                        this.walls.add(wall);
+
+                            // Track tile in peninsula data
+                            peninsula.tiles.push({
+                                gridX: currentGridX,
+                                gridY: currentGridY,
+                                pixelX,
+                                pixelY,
+                                pixelSize: scaledTileSize
+                            });
+                      }
+                  }
+
+                  // Store peninsula
+                  this.peninsulas.push(peninsula);
+                  }
+              }
+         }
 
         isPeninsulaTile(gridX, gridY) {
             // Check if a grid position is occupied by any peninsula
@@ -2295,8 +2386,8 @@ class MainScene extends Phaser.Scene {
               }
           }
           
-          // Fade out potion
-          this.fadePotionOut(potion, 600);
+           // Immediately remove potion to prevent multiple pickups
+           potion.destroy();
       }
 
      createPotionPickupParticles(x, y) {
