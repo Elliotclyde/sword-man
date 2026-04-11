@@ -67,7 +67,7 @@ class MainScene extends Phaser.Scene {
         startingMessage: "Arrow keys to move",
         customObjects: [
           {
-            objectKey: "sword",
+            objectKey: "key",
             x: 500,
             y: 500,
           },
@@ -75,6 +75,57 @@ class MainScene extends Phaser.Scene {
       },
       {
         level: 2,
+        enemies: [
+          { type: enemyTypes.ORC, count: 3 },
+          { type: enemyTypes.WIZARD, count: 1 },
+        ],
+        potions: 0,
+        playerStartX: 100,
+        playerStartY: 100,
+        startingMessage: null,
+        customObjects: [
+          {
+            objectKey: "key",
+            x: 400,
+            y: 300,
+          },
+        ],
+      },
+      {
+        level: 3,
+        enemies: [
+          { type: enemyTypes.ORC, count: 3 },
+          { type: enemyTypes.WEREWOLF, count: 1 },
+        ],
+        potions: 0,
+        playerStartX: 100,
+        playerStartY: 100,
+        startingMessage: null,
+        customObjects: [
+          {
+            objectKey: "key",
+            x: 600,
+            y: 100,
+          },
+        ],
+      },
+      {
+        level: 4,
+        enemies: [{ type: enemyTypes.ORC, count: 1 }],
+        potions: 0,
+        playerStartX: 100,
+        playerStartY: 100,
+        startingMessage: null,
+        customObjects: [
+          {
+            objectKey: "sword",
+            x: 500,
+            y: 500,
+          },
+        ],
+      },
+      {
+        level: 5,
         enemies: [{ type: enemyTypes.ORC, count: 5 }],
         potions: 1,
         playerStartX: 600,
@@ -83,7 +134,7 @@ class MainScene extends Phaser.Scene {
         customObjects: [],
       },
       {
-        level: 3,
+        level: 6,
         enemies: [
           { type: enemyTypes.ORC, count: 5 },
           { type: enemyTypes.WIZARD, count: 1 },
@@ -95,7 +146,7 @@ class MainScene extends Phaser.Scene {
         customObjects: [],
       },
       {
-        level: 4,
+        level: 7,
         enemies: [{ type: enemyTypes.ARMOREDORC, count: 2 }],
         potions: 0,
         playerStartX: 600,
@@ -104,7 +155,7 @@ class MainScene extends Phaser.Scene {
         customObjects: [],
       },
       {
-        level: 5,
+        level: 8,
         enemies: [
           { type: enemyTypes.ORC, count: 5 },
           { type: enemyTypes.WEREWOLF, count: 2 },
@@ -116,7 +167,7 @@ class MainScene extends Phaser.Scene {
         customObjects: [],
       },
       {
-        level: 6,
+        level: 9,
         enemies: [
           { type: enemyTypes.ARMOREDORC, count: 5 },
           { type: enemyTypes.WIZARD, count: 2 },
@@ -1036,9 +1087,6 @@ class MainScene extends Phaser.Scene {
     this.hitEffect.setDepth(100); // Ensure it's on top
     this.hitEffect.setVisible(false);
 
-    // Check win condition in case there are initially no enemies
-    this.checkWinCondition();
-
     // Start background music only on the first level (level index 0)
     if (
       this.currentLevelIndex === 0 &&
@@ -1114,20 +1162,14 @@ class MainScene extends Phaser.Scene {
   }
 
   checkWinCondition() {
-    // Check if all enemies are defeated
-    const livingEnemies = this.enemies.children.entries.filter(
-      (enemy) => !enemy.destroyed && !enemy.isDead,
-    );
-    if (livingEnemies.length === 0) {
-      // Check if there are more levels
-      if (this.currentLevelIndex < this.levels.length - 1) {
-        // Advance to next level
-        this.currentLevelIndex++;
-        this.initializeLevel();
-      } else {
-        // All levels completed, win the game
-        this.winGame();
-      }
+    // Check if there are more levels
+    if (this.currentLevelIndex < this.levels.length - 1) {
+      // Advance to next level
+      this.currentLevelIndex++;
+      this.initializeLevel();
+    } else {
+      // All levels completed, win the game
+      this.winGame();
     }
   }
 
@@ -1325,6 +1367,10 @@ class MainScene extends Phaser.Scene {
       }
       this.player.health = 6;
       this.isGameStarted = false;
+
+      // Reset player abilities
+      this.playerAbilities.dash = false;
+      this.playerAbilities.attack = false;
 
       // Stop and clear any lingering music before restart
       if (this.backgroundMusic) {
@@ -3037,6 +3083,9 @@ class MainScene extends Phaser.Scene {
         case "sword":
           this.spawnSword(obj.x, obj.y);
           break;
+        case "key":
+          this.spawnKey(obj.x, obj.y);
+          break;
         // Future: add more object types here
       }
     });
@@ -3147,6 +3196,9 @@ class MainScene extends Phaser.Scene {
 
     // Unlock attack ability
     this.playerAbilities.attack = true;
+
+    // Show toast message
+    this.showToast("Space bar to attack");
 
     // Create golden particles
     this.createKeyPickupParticles(sword.x, sword.y);
@@ -4246,6 +4298,11 @@ class MainScene extends Phaser.Scene {
           }
           this.player.health = 6;
           this.isGameStarted = false;
+
+          // Reset player abilities
+          this.playerAbilities.dash = false;
+          this.playerAbilities.attack = false;
+
           this.time.delayedCall(10, () => {
             this.currentLevelIndex = 0;
             this.initializeLevel();
