@@ -65,6 +65,13 @@ class MainScene extends Phaser.Scene {
         playerStartX: 100,
         playerStartY: 100,
         startingMessage: "Arrow keys to move",
+        customObjects: [
+          {
+            objectKey: "sword",
+            x: 500,
+            y: 500,
+          },
+        ],
       },
       {
         level: 2,
@@ -73,6 +80,7 @@ class MainScene extends Phaser.Scene {
         playerStartX: 600,
         playerStartY: 500,
         startingMessage: null,
+        customObjects: [],
       },
       {
         level: 3,
@@ -84,6 +92,7 @@ class MainScene extends Phaser.Scene {
         playerStartX: 100,
         playerStartY: 100,
         startingMessage: null,
+        customObjects: [],
       },
       {
         level: 4,
@@ -92,6 +101,7 @@ class MainScene extends Phaser.Scene {
         playerStartX: 600,
         playerStartY: 100,
         startingMessage: null,
+        customObjects: [],
       },
       {
         level: 5,
@@ -103,6 +113,7 @@ class MainScene extends Phaser.Scene {
         playerStartX: 100,
         playerStartY: 100,
         startingMessage: null,
+        customObjects: [],
       },
       {
         level: 6,
@@ -114,6 +125,7 @@ class MainScene extends Phaser.Scene {
         playerStartX: 100,
         playerStartY: 100,
         startingMessage: null,
+        customObjects: [],
       },
     ];
 
@@ -167,6 +179,12 @@ class MainScene extends Phaser.Scene {
     this.key = null; // Reference to key sprite
     this.keySpawned = false; // Prevent duplicate spawning
 
+    // Sword collectible state
+    this.swordPickedUp = false; // Track if sword collected this game
+    this.sword = null; // Reference to sword sprite
+    this.swordSpawned = false; // Prevent duplicate spawning
+    this.playerSwordCollider = null; // Collision reference
+
     // Door state
     this.doorUsed = false; // Prevent multiple door interactions per level
 
@@ -175,12 +193,17 @@ class MainScene extends Phaser.Scene {
     this.toastBackground = null; // Reference to toast background rectangle
     this.toastTween = null; // Reference to active toast tween for cancellation
 
-    this.TOAST_MARGIN_TOP = 80; 
-    this.TOAST_MARGIN_RIGHT = 80; 
-    this.TOAST_WIDTH= 280; 
-    this.TOAST_HEIGHT = 80; 
-    this.TOAST_PADDING = 10; 
+    // Player abilities - game-wide state, not reset per level
+    this.playerAbilities = {
+      dash: false,
+      attack: false,
+    };
 
+    this.TOAST_MARGIN_TOP = 80;
+    this.TOAST_MARGIN_RIGHT = 80;
+    this.TOAST_WIDTH = 280;
+    this.TOAST_HEIGHT = 80;
+    this.TOAST_PADDING = 10;
   }
 
   preload() {
@@ -656,6 +679,18 @@ class MainScene extends Phaser.Scene {
       this.playerKeyCollider = null;
     }
 
+    // Reset sword state (NOT per-level - only reset in winGame/gameOver)
+    this.swordSpawned = false;
+    if (this.sword && !this.sword.destroyed) {
+      this.sword.destroy();
+      this.sword = null;
+    }
+    // Remove sword collision if it exists
+    if (this.playerSwordCollider) {
+      this.physics.world.removeCollider(this.playerSwordCollider);
+      this.playerSwordCollider = null;
+    }
+
     // Reset door state
     this.doorUsed = false;
 
@@ -824,6 +859,9 @@ class MainScene extends Phaser.Scene {
     // Spawn decorative elements on the map
     this.spawnDecorations();
 
+    // Spawn custom objects (swords, potions, etc.)
+    this.spawnCustomObjects();
+
     // Track last horizontal direction (default to right)
     this.lastHorizontalDirection = "right";
     this.isPlayerSwinging = false; // Track if player is currently swinging sword
@@ -962,19 +1000,31 @@ class MainScene extends Phaser.Scene {
     this.levelText.setAlpha(0.7); // Make slightly transparent
 
     // Create toast background (invisible initially)
-    this.toastBackground = this.add.rectangle(800 - this.TOAST_MARGIN_RIGHT- this.TOAST_WIDTH,this.TOAST_MARGIN_TOP ,this.TOAST_WIDTH,this.TOAST_HEIGHT, 0x000000, 0.7);
-    this.toastBackground.setOrigin(0,0); // Keep fixed on screen
+    this.toastBackground = this.add.rectangle(
+      800 - this.TOAST_MARGIN_RIGHT - this.TOAST_WIDTH,
+      this.TOAST_MARGIN_TOP,
+      this.TOAST_WIDTH,
+      this.TOAST_HEIGHT,
+      0x000000,
+      0.7,
+    );
+    this.toastBackground.setOrigin(0, 0); // Keep fixed on screen
     this.toastBackground.setScrollFactor(0); // Keep fixed on screen
     this.toastBackground.setDepth(10); // Render with other HUD elements
     this.toastBackground.setVisible(false);
 
     // Create toast text (invisible initially)
-    this.toastText = this.add.text(800 - this.TOAST_MARGIN_RIGHT - this.TOAST_WIDTH + this.TOAST_PADDING, this.TOAST_MARGIN_TOP + this.TOAST_PADDING, "", {
-      fontSize: "20px",
-      fill: "#ffffff",
-      align: "center",
-      wordWrap: { width: this.TOAST_WIDTH },
-    });
+    this.toastText = this.add.text(
+      800 - this.TOAST_MARGIN_RIGHT - this.TOAST_WIDTH + this.TOAST_PADDING,
+      this.TOAST_MARGIN_TOP + this.TOAST_PADDING,
+      "",
+      {
+        fontSize: "20px",
+        fill: "#ffffff",
+        align: "center",
+        wordWrap: { width: this.TOAST_WIDTH },
+      },
+    );
     this.toastText.setScrollFactor(0); // Keep fixed on screen
     this.toastText.setDepth(11); // Render on top of background
     this.toastText.setVisible(false);
@@ -1352,6 +1402,18 @@ class MainScene extends Phaser.Scene {
     if (this.playerKeyCollider) {
       this.physics.world.removeCollider(this.playerKeyCollider);
       this.playerKeyCollider = null;
+    }
+
+    // Reset sword state
+    this.swordPickedUp = false;
+    this.swordSpawned = false;
+    if (this.sword && !this.sword.destroyed) {
+      this.sword.destroy();
+      this.sword = null;
+    }
+    if (this.playerSwordCollider) {
+      this.physics.world.removeCollider(this.playerSwordCollider);
+      this.playerSwordCollider = null;
     }
 
     // Reset door state
@@ -2964,6 +3026,22 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  spawnCustomObjects() {
+    const levelConfig = this.levels[this.currentLevelIndex];
+    if (!levelConfig.customObjects || levelConfig.customObjects.length === 0) {
+      return;
+    }
+
+    levelConfig.customObjects.forEach((obj) => {
+      switch (obj.objectKey) {
+        case "sword":
+          this.spawnSword(obj.x, obj.y);
+          break;
+        // Future: add more object types here
+      }
+    });
+  }
+
   spawnKey(x, y) {
     // Create key sprite at position
     this.key = this.add.sprite(x, y, "dungeon", 88);
@@ -3004,6 +3082,46 @@ class MainScene extends Phaser.Scene {
     this.keySpawned = true;
   }
 
+  spawnSword(x, y) {
+    // Create sword sprite at position
+    this.sword = this.add.sprite(x, y, "dungeon", 100);
+    this.sword.setScale(3);
+    this.sword.setDepth(2);
+
+    // Enable physics
+    this.physics.add.existing(this.sword);
+    this.sword.body.setCollideWorldBounds(true);
+    this.sword.body.setBounce(0, 0);
+    this.sword.body.setDrag(1, 1);
+
+    // Floating bobbing animation (sine wave, ±10px, 2.5 second cycle)
+    const originalY = this.sword.y;
+    this.tweens.add({
+      targets: this.sword,
+      y: originalY - 10,
+      duration: 1250, // Half cycle (up)
+      ease: "Sine.easeInOut",
+      repeat: -1,
+      yoyo: true, // Returns to originalY automatically
+    });
+
+    // Set up collision detection for player picking up sword (with 500ms delay)
+    this.time.delayedCall(500, () => {
+      if (this.playerSwordCollider) {
+        this.physics.world.removeCollider(this.playerSwordCollider);
+      }
+      this.playerSwordCollider = this.physics.add.overlap(
+        this.player,
+        this.sword,
+        this.handleSwordPickup,
+        null,
+        this,
+      );
+    });
+
+    this.swordSpawned = true;
+  }
+
   handleKeyPickup(player, key) {
     if (this.gameIsOver || this.keyPickedUp) {
       return;
@@ -3017,6 +3135,24 @@ class MainScene extends Phaser.Scene {
 
     // Destroy the key
     key.destroy();
+  }
+
+  handleSwordPickup(player, sword) {
+    if (this.gameIsOver || this.swordPickedUp) {
+      return;
+    }
+
+    // Mark sword as picked up
+    this.swordPickedUp = true;
+
+    // Unlock attack ability
+    this.playerAbilities.attack = true;
+
+    // Create golden particles
+    this.createKeyPickupParticles(sword.x, sword.y);
+
+    // Destroy the sword
+    sword.destroy();
   }
 
   handleDoorCollision(player, door) {
@@ -3140,7 +3276,10 @@ class MainScene extends Phaser.Scene {
     // Handle X key for dash
     if (Phaser.Input.Keyboard.JustDown(this.xKey)) {
       // Check if enough time has passed since last dash (0.5 second cooldown)
-      if (this.time.now - this.lastDashTime >= 500) {
+      if (
+        this.time.now - this.lastDashTime >= 500 &&
+        this.playerAbilities.dash
+      ) {
         // Start dash for 150ms
         this.dashEndTime = this.time.now + 150;
         this.lastDashTime = this.time.now;
@@ -3152,7 +3291,8 @@ class MainScene extends Phaser.Scene {
     if (
       Phaser.Input.Keyboard.JustDown(this.spaceBar) &&
       this.time.now - this.lastAttackTime >= 700 &&
-      this.isGameStarted
+      this.isGameStarted &&
+      this.playerAbilities.attack
     ) {
       this.lastAttackTime = this.time.now;
       this.player.play("sword");
@@ -4052,6 +4192,18 @@ class MainScene extends Phaser.Scene {
         if (this.playerKeyCollider) {
           this.physics.world.removeCollider(this.playerKeyCollider);
           this.playerKeyCollider = null;
+        }
+
+        // Reset sword state
+        this.swordPickedUp = false;
+        this.swordSpawned = false;
+        if (this.sword && !this.sword.destroyed) {
+          this.sword.destroy();
+          this.sword = null;
+        }
+        if (this.playerSwordCollider) {
+          this.physics.world.removeCollider(this.playerSwordCollider);
+          this.playerSwordCollider = null;
         }
 
         // Display game over text
