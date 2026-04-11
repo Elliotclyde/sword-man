@@ -64,6 +64,7 @@ class MainScene extends Phaser.Scene {
         potions: 0,
         playerStartX: 100,
         playerStartY: 100,
+        startingMessage: "Arrow keys to move",
       },
       {
         level: 2,
@@ -71,6 +72,7 @@ class MainScene extends Phaser.Scene {
         potions: 1,
         playerStartX: 600,
         playerStartY: 500,
+        startingMessage: null,
       },
       {
         level: 3,
@@ -81,6 +83,7 @@ class MainScene extends Phaser.Scene {
         potions: 1,
         playerStartX: 100,
         playerStartY: 100,
+        startingMessage: null,
       },
       {
         level: 4,
@@ -88,6 +91,7 @@ class MainScene extends Phaser.Scene {
         potions: 0,
         playerStartX: 600,
         playerStartY: 100,
+        startingMessage: null,
       },
       {
         level: 5,
@@ -98,6 +102,7 @@ class MainScene extends Phaser.Scene {
         potions: 2,
         playerStartX: 100,
         playerStartY: 100,
+        startingMessage: null,
       },
       {
         level: 6,
@@ -108,6 +113,7 @@ class MainScene extends Phaser.Scene {
         potions: 2,
         playerStartX: 100,
         playerStartY: 100,
+        startingMessage: null,
       },
     ];
 
@@ -163,6 +169,18 @@ class MainScene extends Phaser.Scene {
 
     // Door state
     this.doorUsed = false; // Prevent multiple door interactions per level
+
+    // Toast notification state
+    this.toastText = null; // Reference to toast text object
+    this.toastBackground = null; // Reference to toast background rectangle
+    this.toastTween = null; // Reference to active toast tween for cancellation
+
+    this.TOAST_MARGIN_TOP = 80; 
+    this.TOAST_MARGIN_RIGHT = 80; 
+    this.TOAST_WIDTH= 280; 
+    this.TOAST_HEIGHT = 80; 
+    this.TOAST_PADDING = 10; 
+
   }
 
   preload() {
@@ -943,6 +961,25 @@ class MainScene extends Phaser.Scene {
     this.levelText.setDepth(10); // Render above player and enemies
     this.levelText.setAlpha(0.7); // Make slightly transparent
 
+    // Create toast background (invisible initially)
+    this.toastBackground = this.add.rectangle(800 - this.TOAST_MARGIN_RIGHT- this.TOAST_WIDTH,this.TOAST_MARGIN_TOP ,this.TOAST_WIDTH,this.TOAST_HEIGHT, 0x000000, 0.7);
+    this.toastBackground.setOrigin(0,0); // Keep fixed on screen
+    this.toastBackground.setScrollFactor(0); // Keep fixed on screen
+    this.toastBackground.setDepth(10); // Render with other HUD elements
+    this.toastBackground.setVisible(false);
+
+    // Create toast text (invisible initially)
+    this.toastText = this.add.text(800 - this.TOAST_MARGIN_RIGHT - this.TOAST_WIDTH + this.TOAST_PADDING, this.TOAST_MARGIN_TOP + this.TOAST_PADDING, "", {
+      fontSize: "20px",
+      fill: "#ffffff",
+      align: "center",
+      wordWrap: { width: this.TOAST_WIDTH },
+    });
+    this.toastText.setScrollFactor(0); // Keep fixed on screen
+    this.toastText.setDepth(11); // Render on top of background
+    this.toastText.setVisible(false);
+    this.toastText.setAlpha(0);
+
     // Create fullscreen red overlay for hit effect (hidden by default)
     this.hitEffect = this.add.rectangle(0, 0, 800, 600, 0xff0000, 0.7);
     this.hitEffect.setOrigin(0, 0);
@@ -974,8 +1011,56 @@ class MainScene extends Phaser.Scene {
     // Enable attacking now that the game is initialized
     this.isGameStarted = true;
 
+    // Show starting toast message if one exists for this level
+    if (this.levels[this.currentLevelIndex].startingMessage) {
+      this.time.delayedCall(100, () => {
+        this.showToast(this.levels[this.currentLevelIndex].startingMessage);
+      });
+    }
+
     // Start the potion spawner for this level
     this.startPotionSpawner();
+  }
+
+  showToast(message) {
+    // Kill existing tween if running
+    if (this.toastTween) {
+      this.toastTween.stop();
+      this.toastTween = null;
+    }
+
+    // Set the toast text and show elements
+    this.toastText.setText(message);
+    this.toastText.setVisible(true);
+    this.toastBackground.setVisible(true);
+
+    // Create tween sequence: fade in (300ms) -> hold (2400ms) -> fade out (300ms)
+    this.toastTween = this.tweens.timeline({
+      tweens: [
+        {
+          targets: [this.toastText, this.toastBackground],
+          alpha: 0.8,
+          duration: 300,
+          ease: "Quad.easeInOut",
+        },
+        {
+          targets: [this.toastText, this.toastBackground],
+          alpha: 0.8,
+          duration: 2400,
+          ease: "Linear",
+        },
+        {
+          targets: [this.toastText, this.toastBackground],
+          alpha: 0,
+          duration: 300,
+          ease: "Quad.easeInOut",
+          onComplete: () => {
+            this.toastText.setVisible(false);
+            this.toastBackground.setVisible(false);
+          },
+        },
+      ],
+    });
   }
 
   checkWinCondition() {
