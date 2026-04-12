@@ -64,7 +64,10 @@ class MainScene extends Phaser.Scene {
         potions: 0,
         playerStartX: 100,
         playerStartY: 100,
-        startingMessage: "Arrow keys to move",
+        startingMessage: [
+          "Arrow keys to move",
+          "use the key to open the door",
+        ],
         customObjects: [
           {
             objectKey: "key",
@@ -76,13 +79,13 @@ class MainScene extends Phaser.Scene {
       {
         level: 2,
         enemies: [
-          { type: enemyTypes.ORC, count: 3 },
+          { type: enemyTypes.ORC, count: 1 },
           { type: enemyTypes.WIZARD, count: 1 },
         ],
         potions: 0,
         playerStartX: 100,
         playerStartY: 100,
-        startingMessage: null,
+        startingMessage: [],
         customObjects: [
           {
             objectKey: "key",
@@ -94,13 +97,12 @@ class MainScene extends Phaser.Scene {
       {
         level: 3,
         enemies: [
-          { type: enemyTypes.ORC, count: 3 },
           { type: enemyTypes.WEREWOLF, count: 1 },
         ],
         potions: 0,
         playerStartX: 100,
         playerStartY: 100,
-        startingMessage: null,
+        startingMessage: [],
         customObjects: [
           {
             objectKey: "key",
@@ -111,11 +113,29 @@ class MainScene extends Phaser.Scene {
       },
       {
         level: 4,
+        enemies: [
+          { type: enemyTypes.ORC, count: 1 },
+          { type: enemyTypes.WIZARD, count: 3 },
+        ],
+        potions: 0,
+        playerStartX: 100,
+        playerStartY: 100,
+        startingMessage: [],
+        customObjects: [
+          {
+            objectKey: "key",
+            x: 600,
+            y: 100,
+          },
+        ],
+      },
+      {
+        level: 5,
         enemies: [{ type: enemyTypes.ORC, count: 1 }],
         potions: 0,
         playerStartX: 100,
         playerStartY: 100,
-        startingMessage: null,
+        startingMessage: [],
         customObjects: [
           {
             objectKey: "sword",
@@ -125,16 +145,16 @@ class MainScene extends Phaser.Scene {
         ],
       },
       {
-        level: 5,
+        level: 6,
         enemies: [{ type: enemyTypes.ORC, count: 5 }],
         potions: 1,
         playerStartX: 600,
         playerStartY: 500,
-        startingMessage: null,
+        startingMessage: [],
         customObjects: [],
       },
       {
-        level: 6,
+        level: 7,
         enemies: [
           { type: enemyTypes.ORC, count: 5 },
           { type: enemyTypes.WIZARD, count: 1 },
@@ -142,20 +162,20 @@ class MainScene extends Phaser.Scene {
         potions: 1,
         playerStartX: 100,
         playerStartY: 100,
-        startingMessage: null,
-        customObjects: [],
-      },
-      {
-        level: 7,
-        enemies: [{ type: enemyTypes.ARMOREDORC, count: 2 }],
-        potions: 0,
-        playerStartX: 600,
-        playerStartY: 100,
-        startingMessage: null,
+        startingMessage: [],
         customObjects: [],
       },
       {
         level: 8,
+        enemies: [{ type: enemyTypes.ARMOREDORC, count: 2 }],
+        potions: 0,
+        playerStartX: 600,
+        playerStartY: 100,
+        startingMessage: [],
+        customObjects: [],
+      },
+      {
+        level: 9,
         enemies: [
           { type: enemyTypes.ORC, count: 5 },
           { type: enemyTypes.WEREWOLF, count: 2 },
@@ -163,11 +183,11 @@ class MainScene extends Phaser.Scene {
         potions: 2,
         playerStartX: 100,
         playerStartY: 100,
-        startingMessage: null,
+        startingMessage: [],
         customObjects: [],
       },
       {
-        level: 9,
+        level: 10,
         enemies: [
           { type: enemyTypes.ARMOREDORC, count: 5 },
           { type: enemyTypes.WIZARD, count: 2 },
@@ -175,7 +195,7 @@ class MainScene extends Phaser.Scene {
         potions: 2,
         playerStartX: 100,
         playerStartY: 100,
-        startingMessage: null,
+        startingMessage: [],
         customObjects: [],
       },
     ];
@@ -254,7 +274,9 @@ class MainScene extends Phaser.Scene {
     this.TOAST_MARGIN_RIGHT = 80;
     this.TOAST_WIDTH = 280;
     this.TOAST_HEIGHT = 80;
-    this.TOAST_PADDING = 10;
+    this.TOAST_PADDING = 17;
+
+    this.TOAST_MULTI_MESSAGE_INTERVAL = 20;
   }
 
   preload() {
@@ -1110,9 +1132,14 @@ class MainScene extends Phaser.Scene {
     this.isGameStarted = true;
 
     // Show starting toast message if one exists for this level
-    if (this.levels[this.currentLevelIndex].startingMessage) {
+    if (
+      this.levels[this.currentLevelIndex].startingMessage &&
+      this.levels[this.currentLevelIndex].startingMessage.length > 0
+    ) {
       this.time.delayedCall(100, () => {
-        this.showToast(this.levels[this.currentLevelIndex].startingMessage);
+        this.showMultipleToasts(
+          this.levels[this.currentLevelIndex].startingMessage,
+        );
       });
     }
 
@@ -1159,6 +1186,24 @@ class MainScene extends Phaser.Scene {
         },
       ],
     });
+  }
+
+  showMultipleToasts(messages) {
+    if (!messages || messages.length === 0) {
+      return;
+    }
+
+    // Show the first message immediately
+    this.showToast(messages[0]);
+
+    // Schedule additional messages with interval between them
+    for (let i = 1; i < messages.length; i++) {
+      const delayBeforeMessage =
+        i * (300 + 2400 + 300 + this.TOAST_MULTI_MESSAGE_INTERVAL);
+      this.time.delayedCall(delayBeforeMessage, () => {
+        this.showToast(messages[i]);
+      });
+    }
   }
 
   checkWinCondition() {
@@ -3198,7 +3243,7 @@ class MainScene extends Phaser.Scene {
     this.playerAbilities.attack = true;
 
     // Show toast message
-    this.showToast("Space bar to attack");
+    this.showMultipleToasts(["Space bar to attack", "Vanquish your enemies to find the key"]);
 
     // Create golden particles
     this.createKeyPickupParticles(sword.x, sword.y);
