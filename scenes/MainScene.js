@@ -2576,6 +2576,44 @@ class MainScene extends Phaser.Scene {
     return false;
   }
 
+  isPixelInPeninsula(pixelX, pixelY) {
+    // Convert pixel position to grid position
+    const scaledTileSize = 16 * this.tileScale;
+    const gridX = Math.floor(pixelX / scaledTileSize);
+    const gridY = Math.floor(pixelY / scaledTileSize);
+    return this.isPeninsulaTile(gridX, gridY);
+  }
+
+  findValidSpawnPosition(originalX, originalY, maxAttempts = 20) {
+    // If original position is valid, use it
+    if (!this.isPixelInPeninsula(originalX, originalY)) {
+      return { x: originalX, y: originalY };
+    }
+
+    // Try to find a valid position nearby
+    const scaledTileSize = 16 * this.tileScale;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const randomX =
+        Phaser.Math.Between(50, 750) +
+        Phaser.Math.Between(-50, 50) * (Math.random() > 0.5 ? 1 : -1);
+      const randomY =
+        Phaser.Math.Between(50, 550) +
+        Phaser.Math.Between(-50, 50) * (Math.random() > 0.5 ? 1 : -1);
+
+      // Clamp to world bounds
+      const clampedX = Phaser.Math.Clamp(randomX, 0, 800);
+      const clampedY = Phaser.Math.Clamp(randomY, 0, 600);
+
+      if (!this.isPixelInPeninsula(clampedX, clampedY)) {
+        return { x: clampedX, y: clampedY };
+      }
+    }
+
+    // If we can't find a valid position after many attempts, just return the original
+    // (it will be spawned in the peninsula, but this is a fallback)
+    return { x: originalX, y: originalY };
+  }
+
   pixelToGrid(pixelPos) {
     // Convert pixel position to grid position
     const scaledTileSize = 16 * this.tileScale;
@@ -3171,8 +3209,11 @@ class MainScene extends Phaser.Scene {
   }
 
   spawnKey(x, y) {
+    // Find a valid spawn position that doesn't overlap with peninsulas
+    const validPos = this.findValidSpawnPosition(x, y);
+
     // Create key sprite at position
-    this.key = this.add.sprite(x, y, "dungeon", 88);
+    this.key = this.add.sprite(validPos.x, validPos.y, "dungeon", 88);
     this.key.setScale(3);
     this.key.setDepth(2);
 
@@ -3211,8 +3252,11 @@ class MainScene extends Phaser.Scene {
   }
 
   spawnSword(x, y) {
+    // Find a valid spawn position that doesn't overlap with peninsulas
+    const validPos = this.findValidSpawnPosition(x, y);
+
     // Create sword sprite at position
-    this.sword = this.add.sprite(x, y, "dungeon", 100);
+    this.sword = this.add.sprite(validPos.x, validPos.y, "dungeon", 100);
     this.sword.setScale(3);
     this.sword.setDepth(2);
 
@@ -3251,8 +3295,11 @@ class MainScene extends Phaser.Scene {
   }
 
   spawnBoots(x, y) {
+    // Find a valid spawn position that doesn't overlap with peninsulas
+    const validPos = this.findValidSpawnPosition(x, y);
+
     // Create boots sprite at position
-    this.boots = this.add.sprite(x, y, "dungeon", 101);
+    this.boots = this.add.sprite(validPos.x, validPos.y, "dungeon", 101);
     this.boots.setScale(3);
     this.boots.setDepth(2);
 
