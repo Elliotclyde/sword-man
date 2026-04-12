@@ -75,6 +75,21 @@ class MainScene extends Phaser.Scene {
       },
       {
         level: 2,
+        enemies: [{ type: enemyTypes.ORC, count: 3 }],
+        potions: 0,
+        playerStartX: 500,
+        playerStartY: 100,
+        startingMessage: [],
+        customObjects: [
+          {
+            objectKey: "key",
+            x: 100,
+            y: 500,
+          },
+        ],
+      },
+      {
+        level: 3,
         enemies: [
           { type: enemyTypes.ORC, count: 1 },
           { type: enemyTypes.WIZARD, count: 1 },
@@ -92,22 +107,22 @@ class MainScene extends Phaser.Scene {
         ],
       },
       {
-        level: 3,
+        level: 4,
         enemies: [{ type: enemyTypes.WEREWOLF, count: 1 }],
         potions: 0,
         playerStartX: 100,
         playerStartY: 500,
-        startingMessage: [],
+        startingMessage: ["Werewolves will hunt you if they get your scent"],
         customObjects: [
           {
             objectKey: "key",
             x: 600,
-            y: 100,
+            y: 200,
           },
         ],
       },
       {
-        level: 4,
+        level: 5,
         enemies: [
           { type: enemyTypes.ORC, count: 1 },
           { type: enemyTypes.WIZARD, count: 2 },
@@ -125,7 +140,7 @@ class MainScene extends Phaser.Scene {
         ],
       },
       {
-        level: 5,
+        level: 6,
         enemies: [{ type: enemyTypes.ORC, count: 1 }],
         potions: 0,
         playerStartX: 100,
@@ -140,7 +155,7 @@ class MainScene extends Phaser.Scene {
         ],
       },
       {
-        level: 6,
+        level: 7,
         enemies: [{ type: enemyTypes.ORC, count: 5 }],
         potions: 1,
         playerStartX: 600,
@@ -149,7 +164,7 @@ class MainScene extends Phaser.Scene {
         customObjects: [],
       },
       {
-        level: 7,
+        level: 8,
         enemies: [
           { type: enemyTypes.ORC, count: 5 },
           { type: enemyTypes.WIZARD, count: 1 },
@@ -161,7 +176,7 @@ class MainScene extends Phaser.Scene {
         customObjects: [],
       },
       {
-        level: 8,
+        level: 9,
         enemies: [{ type: enemyTypes.ARMOREDORC, count: 2 }],
         potions: 0,
         playerStartX: 600,
@@ -176,7 +191,7 @@ class MainScene extends Phaser.Scene {
         ],
       },
       {
-        level: 9,
+        level: 10,
         enemies: [
           { type: enemyTypes.ORC, count: 5 },
           { type: enemyTypes.WEREWOLF, count: 2 },
@@ -188,7 +203,7 @@ class MainScene extends Phaser.Scene {
         customObjects: [],
       },
       {
-        level: 10,
+        level: 11,
         enemies: [
           { type: enemyTypes.ARMOREDORC, count: 5 },
           { type: enemyTypes.WIZARD, count: 2 },
