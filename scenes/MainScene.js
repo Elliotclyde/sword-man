@@ -64,10 +64,7 @@ class MainScene extends Phaser.Scene {
         potions: 0,
         playerStartX: 100,
         playerStartY: 100,
-        startingMessage: [
-          "Arrow keys to move",
-          "use the key to open the door",
-        ],
+        startingMessage: ["Arrow keys to move", "Find the key. Escape."],
         customObjects: [
           {
             objectKey: "key",
@@ -96,12 +93,10 @@ class MainScene extends Phaser.Scene {
       },
       {
         level: 3,
-        enemies: [
-          { type: enemyTypes.WEREWOLF, count: 1 },
-        ],
+        enemies: [{ type: enemyTypes.WEREWOLF, count: 1 }],
         potions: 0,
         playerStartX: 100,
-        playerStartY: 100,
+        playerStartY: 500,
         startingMessage: [],
         customObjects: [
           {
@@ -115,7 +110,7 @@ class MainScene extends Phaser.Scene {
         level: 4,
         enemies: [
           { type: enemyTypes.ORC, count: 1 },
-          { type: enemyTypes.WIZARD, count: 3 },
+          { type: enemyTypes.WIZARD, count: 2 },
         ],
         potions: 0,
         playerStartX: 100,
@@ -172,7 +167,13 @@ class MainScene extends Phaser.Scene {
         playerStartX: 600,
         playerStartY: 100,
         startingMessage: [],
-        customObjects: [],
+        customObjects: [
+          {
+            objectKey: "boots",
+            x: 400,
+            y: 300,
+          },
+        ],
       },
       {
         level: 9,
@@ -255,6 +256,12 @@ class MainScene extends Phaser.Scene {
     this.sword = null; // Reference to sword sprite
     this.swordSpawned = false; // Prevent duplicate spawning
     this.playerSwordCollider = null; // Collision reference
+
+    // Boots collectible state
+    this.bootsPickedUp = false; // Track if boots collected this game
+    this.boots = null; // Reference to boots sprite
+    this.bootsSpawned = false; // Prevent duplicate spawning
+    this.playerBootsCollider = null; // Collision reference
 
     // Door state
     this.doorUsed = false; // Prevent multiple door interactions per level
@@ -762,6 +769,18 @@ class MainScene extends Phaser.Scene {
     if (this.playerSwordCollider) {
       this.physics.world.removeCollider(this.playerSwordCollider);
       this.playerSwordCollider = null;
+    }
+
+    // Reset boots state (NOT per-level - only reset in winGame/gameOver)
+    this.bootsSpawned = false;
+    if (this.boots && !this.boots.destroyed) {
+      this.boots.destroy();
+      this.boots = null;
+    }
+    // Remove boots collision if it exists
+    if (this.playerBootsCollider) {
+      this.physics.world.removeCollider(this.playerBootsCollider);
+      this.playerBootsCollider = null;
     }
 
     // Reset door state
@@ -1505,6 +1524,18 @@ class MainScene extends Phaser.Scene {
     if (this.playerSwordCollider) {
       this.physics.world.removeCollider(this.playerSwordCollider);
       this.playerSwordCollider = null;
+    }
+
+    // Reset boots state
+    this.bootsPickedUp = false;
+    this.bootsSpawned = false;
+    if (this.boots && !this.boots.destroyed) {
+      this.boots.destroy();
+      this.boots = null;
+    }
+    if (this.playerBootsCollider) {
+      this.physics.world.removeCollider(this.playerBootsCollider);
+      this.playerBootsCollider = null;
     }
 
     // Reset door state
@@ -3128,6 +3159,9 @@ class MainScene extends Phaser.Scene {
         case "sword":
           this.spawnSword(obj.x, obj.y);
           break;
+        case "boots":
+          this.spawnBoots(obj.x, obj.y);
+          break;
         case "key":
           this.spawnKey(obj.x, obj.y);
           break;
@@ -3216,6 +3250,46 @@ class MainScene extends Phaser.Scene {
     this.swordSpawned = true;
   }
 
+  spawnBoots(x, y) {
+    // Create boots sprite at position
+    this.boots = this.add.sprite(x, y, "dungeon", 101);
+    this.boots.setScale(3);
+    this.boots.setDepth(2);
+
+    // Enable physics
+    this.physics.add.existing(this.boots);
+    this.boots.body.setCollideWorldBounds(true);
+    this.boots.body.setBounce(0, 0);
+    this.boots.body.setDrag(1, 1);
+
+    // Floating bobbing animation (sine wave, ±10px, 2.5 second cycle)
+    const originalY = this.boots.y;
+    this.tweens.add({
+      targets: this.boots,
+      y: originalY - 10,
+      duration: 1250, // Half cycle (up)
+      ease: "Sine.easeInOut",
+      repeat: -1,
+      yoyo: true, // Returns to originalY automatically
+    });
+
+    // Set up collision detection for player picking up boots (with 500ms delay)
+    this.time.delayedCall(500, () => {
+      if (this.playerBootsCollider) {
+        this.physics.world.removeCollider(this.playerBootsCollider);
+      }
+      this.playerBootsCollider = this.physics.add.overlap(
+        this.player,
+        this.boots,
+        this.handleBootsPickup,
+        null,
+        this,
+      );
+    });
+
+    this.bootsSpawned = true;
+  }
+
   handleKeyPickup(player, key) {
     if (this.gameIsOver || this.keyPickedUp) {
       return;
@@ -3243,13 +3317,37 @@ class MainScene extends Phaser.Scene {
     this.playerAbilities.attack = true;
 
     // Show toast message
-    this.showMultipleToasts(["Space bar to attack", "Vanquish your enemies to find the key"]);
+    this.showMultipleToasts([
+      "Space bar to attack",
+      "Vanquish your enemies to find the key",
+    ]);
 
     // Create golden particles
     this.createKeyPickupParticles(sword.x, sword.y);
 
     // Destroy the sword
     sword.destroy();
+  }
+
+  handleBootsPickup(player, boots) {
+    if (this.gameIsOver || this.bootsPickedUp) {
+      return;
+    }
+
+    // Mark boots as picked up
+    this.bootsPickedUp = true;
+
+    // Unlock dash ability
+    this.playerAbilities.dash = true;
+
+    // Show toast message
+    this.showToast("X key to dash");
+
+    // Create golden particles
+    this.createKeyPickupParticles(boots.x, boots.y);
+
+    // Destroy the boots
+    boots.destroy();
   }
 
   handleDoorCollision(player, door) {
@@ -4301,6 +4399,18 @@ class MainScene extends Phaser.Scene {
         if (this.playerSwordCollider) {
           this.physics.world.removeCollider(this.playerSwordCollider);
           this.playerSwordCollider = null;
+        }
+
+        // Reset boots state
+        this.bootsPickedUp = false;
+        this.bootsSpawned = false;
+        if (this.boots && !this.boots.destroyed) {
+          this.boots.destroy();
+          this.boots = null;
+        }
+        if (this.playerBootsCollider) {
+          this.physics.world.removeCollider(this.playerBootsCollider);
+          this.playerBootsCollider = null;
         }
 
         // Display game over text
