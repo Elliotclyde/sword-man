@@ -1,3 +1,4 @@
+import MenuScene from "./scenes/MenuScene.js";
 import MainScene from "./scenes/MainScene.js";
 
 const config = {
@@ -15,7 +16,7 @@ const config = {
       debug: false,
     },
   },
-  scene: [MainScene],
+  scene: [MenuScene, MainScene],
 };
 
 export default config;

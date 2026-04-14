@@ -854,7 +854,7 @@ class MainScene extends Phaser.Scene {
     }
     this.enemies = this.add.group();
 
-    // Remove all fireballs
+    // Remove all fireballs and cancel pending fireball timers
     if (this.fireballs) {
       const fireballsToDestroy = [...this.fireballs.children.entries];
       fireballsToDestroy.forEach((fireball) => {
@@ -865,6 +865,16 @@ class MainScene extends Phaser.Scene {
       this.fireballs.clear();
     }
     this.fireballs = this.add.group();
+
+    // Cancel all pending fireball timers
+    if (this.pendingFireballTimers) {
+      this.pendingFireballTimers.forEach((timer) => {
+        if (timer && !timer.paused) {
+          timer.remove();
+        }
+      });
+      this.pendingFireballTimers = [];
+    }
 
     // Remove all potions
     if (this.potions) {
@@ -1585,6 +1595,7 @@ class MainScene extends Phaser.Scene {
     this.peninsulaGraphics.setDepth(-8); // Render above bounding walls
     this.peninsulaSprites = this.add.group(); // Group to track peninsula corner sprites for cleanup
     this.peninsulaWalls = this.physics.add.staticGroup(); // Physics group for peninsula collision zones
+    this.pendingFireballTimers = []; // Track pending fireball-related timers for cleanup
 
     for (let y = 0; y < PLAYABLE_GRID_HEIGHT; y++) {
       for (let x = 0; x < gridWidth; x++) {
@@ -2887,11 +2898,15 @@ class MainScene extends Phaser.Scene {
     this.fireballs.add(fireball);
 
     // Destroy fireball after 5 seconds (in case it goes off screen)
-    this.time.delayedCall(5000, () => {
+    const fireballTimer = this.time.delayedCall(5000, () => {
       if (fireball && !fireball.destroyed) {
         fireball.destroy();
       }
     });
+    // Track this timer for cleanup during level initialization
+    if (this.pendingFireballTimers) {
+      this.pendingFireballTimers.push(fireballTimer);
+    }
   }
 
   checkAndExecuteAlignedAttack(wizard) {
@@ -2961,11 +2976,18 @@ class MainScene extends Phaser.Scene {
           const fireballSpawnTime = 1200 * 0.8;
 
           // Schedule fireball spawn at 75% through animation
-          this.time.delayedCall(fireballSpawnTime, () => {
-            if (!wizard.destroyed && !wizard.isDead) {
-              this.spawnFireball(wizard);
-            }
-          });
+          const fireballSpawnTimer = this.time.delayedCall(
+            fireballSpawnTime,
+            () => {
+              if (!wizard.destroyed && !wizard.isDead) {
+                this.spawnFireball(wizard);
+              }
+            },
+          );
+          // Track this timer for cleanup
+          if (this.pendingFireballTimers) {
+            this.pendingFireballTimers.push(fireballSpawnTimer);
+          }
 
           // Listen for animation complete event to clear attacking flag
           wizard.once("animationcomplete-wizard_attack", () => {
@@ -2976,6 +2998,10 @@ class MainScene extends Phaser.Scene {
           this.scheduleWizardAttack(wizard);
         }
       });
+      // Track the attack timer too
+      if (this.pendingFireballTimers) {
+        this.pendingFireballTimers.push(wizard.attackTimer);
+      }
     }
   }
 
