@@ -609,6 +609,12 @@ class MainScene extends Phaser.Scene {
         // Reschedule for next idle sound
         this.scheduleIdleSoundForEnemyType(enemyType);
       });
+    } else {
+      // Clear timer if no enemies of this type are alive
+      if (this[timerPropName]) {
+        this[timerPropName].remove();
+        this[timerPropName] = null;
+      }
     }
   }
 
