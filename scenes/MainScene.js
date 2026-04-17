@@ -348,6 +348,12 @@ class MainScene extends Phaser.Scene {
 
     // Load cathedral impulse response for reverb
     this.load.audio("cathedral-ir", "assets/cathedral-ir.wav");
+
+    // Load audio sprite JSON first
+    this.load.json("sfx-json");
+
+    // Load audio sprite for game sound effects
+    this.load.audioSprite("sfx", "assets/sounds.json", ["assets/sounds.wav"]);
   }
 
   // Initialize the low pass filter and cathedral reverb for background music
@@ -1289,6 +1295,11 @@ class MainScene extends Phaser.Scene {
     // Reduce player health
     player.health -= 1;
 
+    // Play hurt sound if player is still alive
+    if (player.health > 0) {
+      this.sfx.play("playerhurt");
+    }
+
     // Update health bar display (only update the health value sprite)
     if (this.healthValueBar) {
       // Frame mapping: 6 health -> frame 1, 5 health -> frame 2, ... 0 health -> frame 7
@@ -1862,6 +1873,8 @@ class MainScene extends Phaser.Scene {
       frameRate: 2,
       repeat: 0,
     });
+
+    this.sfx = this.sound.addAudioSprite("sfx");
 
     // Create a sprite from the soldier spritesheet
     // Use frame 0 (the first 100x100px from top-left)
@@ -4213,6 +4226,12 @@ class MainScene extends Phaser.Scene {
         // Mark enemy as dead
         enemy.isDead = true;
 
+        // Get enemy type prefix for death sound and animation
+        const typePrefix = enemy.type.toLowerCase();
+
+        // Play enemy death sound
+        this.sfx.play(`${typePrefix}death`);
+
         // Lower enemy's depth so it renders under the player after death
         enemy.setDepth(-1);
 
@@ -4220,7 +4239,6 @@ class MainScene extends Phaser.Scene {
         enemy.body.setVelocity(0, 0);
 
         // Play death animation
-        const typePrefix = enemy.type.toLowerCase();
         enemy.play(`${typePrefix}_die`);
 
         // After death animation completes, start fade out
@@ -4311,6 +4329,11 @@ class MainScene extends Phaser.Scene {
 
         // Reduce player health
         player.health -= 1;
+
+        // Play hurt sound if player is still alive
+        if (player.health > 0) {
+          this.sfx.play("playerhurt");
+        }
 
         // Update health bar display (only update the health value sprite)
         if (this.healthValueBar) {
