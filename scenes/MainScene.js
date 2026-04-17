@@ -299,6 +299,12 @@ class MainScene extends Phaser.Scene {
     this.TOAST_PADDING = 17;
 
     this.TOAST_MULTI_MESSAGE_INTERVAL = 20;
+
+    // Idle sound timers - one per enemy type for ambient atmosphere
+    this.orcIdleTimer = null;
+    this.armoredOrcIdleTimer = null;
+    this.werewolfIdleTimer = null;
+    this.wizardIdleTimer = null;
   }
 
   preload() {
@@ -575,6 +581,45 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  // Check if any enemies of a specific type are alive
+  hasAliveEnemiesOfType(enemyType) {
+    return this.enemies.children.entries.some(
+      (enemy) => !enemy.destroyed && !enemy.isDead && enemy.type === enemyType,
+    );
+  }
+
+  // Schedule idle sound for an enemy type
+  scheduleIdleSoundForEnemyType(enemyType) {
+    // Get the appropriate timer property name
+    const timerPropName = `${enemyType.toLowerCase()}IdleTimer`;
+
+    // If enemy type is alive, schedule sound
+    if (this.hasAliveEnemiesOfType(enemyType)) {
+      const soundKey = `${enemyType.toLowerCase()}idle`;
+      const delay = Phaser.Math.Between(3000, 8000); // Random 3-8 seconds
+
+      // Clear existing timer if any
+      if (this[timerPropName]) {
+        this[timerPropName].remove();
+      }
+
+      // Schedule new sound
+      this[timerPropName] = this.time.delayedCall(delay, () => {
+        this.playSfx(soundKey);
+        // Reschedule for next idle sound
+        this.scheduleIdleSoundForEnemyType(enemyType);
+      });
+    }
+  }
+
+  // Update idle sounds for all enemy types
+  updateIdleSounds() {
+    this.scheduleIdleSoundForEnemyType(enemyTypes.ORC);
+    this.scheduleIdleSoundForEnemyType(enemyTypes.ARMOREDORC);
+    this.scheduleIdleSoundForEnemyType(enemyTypes.WEREWOLF);
+    this.scheduleIdleSoundForEnemyType(enemyTypes.WIZARD);
+  }
+
   // Update the filter frequency and dry/wet balance with independent triangle wave oscillation
   updateAudioFilter(deltaTime) {
     if (!this.isFilterActive || !this.filterNode) {
@@ -699,6 +744,24 @@ class MainScene extends Phaser.Scene {
 
     // Stop any existing potion spawner
     this.stopPotionSpawner();
+
+    // Clean up idle sound timers from previous level
+    if (this.orcIdleTimer) {
+      this.orcIdleTimer.remove();
+      this.orcIdleTimer = null;
+    }
+    if (this.armoredOrcIdleTimer) {
+      this.armoredOrcIdleTimer.remove();
+      this.armoredOrcIdleTimer = null;
+    }
+    if (this.werewolfIdleTimer) {
+      this.werewolfIdleTimer.remove();
+      this.werewolfIdleTimer = null;
+    }
+    if (this.wizardIdleTimer) {
+      this.wizardIdleTimer.remove();
+      this.wizardIdleTimer = null;
+    }
 
     // Remove win/lose text if it exists
     if (this.resultText) {
@@ -995,6 +1058,9 @@ class MainScene extends Phaser.Scene {
 
     // Spawn custom objects (swords, potions, etc.)
     this.spawnCustomObjects();
+
+    // Start scheduling idle sounds for all enemy types
+    this.updateIdleSounds();
 
     // Track last horizontal direction (default to right)
     this.lastHorizontalDirection = "right";
@@ -1428,6 +1494,24 @@ class MainScene extends Phaser.Scene {
 
     // Clean up audio filter
     this.cleanupAudioFilter();
+
+    // Clean up idle sound timers
+    if (this.orcIdleTimer) {
+      this.orcIdleTimer.remove();
+      this.orcIdleTimer = null;
+    }
+    if (this.armoredOrcIdleTimer) {
+      this.armoredOrcIdleTimer.remove();
+      this.armoredOrcIdleTimer = null;
+    }
+    if (this.werewolfIdleTimer) {
+      this.werewolfIdleTimer.remove();
+      this.werewolfIdleTimer = null;
+    }
+    if (this.wizardIdleTimer) {
+      this.wizardIdleTimer.remove();
+      this.wizardIdleTimer = null;
+    }
 
     // Display win text
     let winMessage = "YOU WIN!";
@@ -4246,6 +4330,9 @@ class MainScene extends Phaser.Scene {
         // Mark enemy as dead
         enemy.isDead = true;
 
+        // Update idle sounds since this enemy type's count changed
+        this.updateIdleSounds();
+
         // Get enemy type prefix for death sound and animation
         const typePrefix = enemy.type.toLowerCase();
 
@@ -4434,6 +4521,9 @@ class MainScene extends Phaser.Scene {
       return;
     }
     this.gameIsOver = true;
+
+    // Play player death sound
+    this.playSfx("playerdead");
 
     // Stop potion spawner
     this.stopPotionSpawner();
