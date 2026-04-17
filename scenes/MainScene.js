@@ -2899,6 +2899,9 @@ class MainScene extends Phaser.Scene {
     fireball.flipX = wizard.flipX; // Mirror fireball animation direction with wizard
     fireball.play("wizard_fireball");
 
+    // Play wizard attack sound
+    this.sfx.play("wizardattack");
+
     // Add physics to fireball
     this.physics.add.existing(fireball);
     fireball.body.setSize(15, 15, true);
@@ -3725,6 +3728,7 @@ class MainScene extends Phaser.Scene {
             enemy.anims.currentAnim.key !== attackAnimKey
           ) {
             enemy.play(attackAnimKey);
+            this.sfx.play(`${typePrefix}attack`);
             enemy.isAxeSwinging = true;
 
             // Set up callback to revert animation after attack completes
