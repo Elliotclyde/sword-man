@@ -564,6 +564,17 @@ class MainScene extends Phaser.Scene {
     );
   }
 
+  // Play a sound effect by creating a new audio sprite instance
+  // This allows multiple sound effects to play simultaneously (polyphonic playback)
+  playSfx(soundKey) {
+    try {
+      const sfx = this.sound.addAudioSprite("sfx");
+      sfx.play(soundKey);
+    } catch (e) {
+      // Silently fail if audio sprite or sound key doesn't exist
+    }
+  }
+
   // Update the filter frequency and dry/wet balance with independent triangle wave oscillation
   updateAudioFilter(deltaTime) {
     if (!this.isFilterActive || !this.filterNode) {
@@ -1297,7 +1308,7 @@ class MainScene extends Phaser.Scene {
 
     // Play hurt sound if player is still alive
     if (player.health > 0) {
-      this.sfx.play("playerhurt");
+      this.playSfx("playerhurt");
     }
 
     // Update health bar display (only update the health value sprite)
@@ -1874,7 +1885,8 @@ class MainScene extends Phaser.Scene {
       repeat: 0,
     });
 
-    this.sfx = this.sound.addAudioSprite("sfx");
+    // Note: We don't store audio sprite as a property anymore.
+    // Use playSfx() method instead to create new instances for polyphonic playback.
 
     // Create a sprite from the soldier spritesheet
     // Use frame 0 (the first 100x100px from top-left)
@@ -2899,9 +2911,6 @@ class MainScene extends Phaser.Scene {
     fireball.flipX = wizard.flipX; // Mirror fireball animation direction with wizard
     fireball.play("wizard_fireball");
 
-    // Play wizard attack sound
-    this.sfx.play("wizardattack");
-
     // Add physics to fireball
     this.physics.add.existing(fireball);
     fireball.body.setSize(15, 15, true);
@@ -2953,6 +2962,9 @@ class MainScene extends Phaser.Scene {
           wizard.facingLocked = true; // Lock facing direction during attack
           wizard.play("wizard_attack");
           wizard.lastAlignedAttackTime = this.time.now; // Set cooldown
+
+          // Play wizard attack sound
+          this.playSfx("wizardattack");
 
           // Spawn fireball at 80% through animation (960ms)
           this.time.delayedCall(960, () => {
@@ -3728,7 +3740,7 @@ class MainScene extends Phaser.Scene {
             enemy.anims.currentAnim.key !== attackAnimKey
           ) {
             enemy.play(attackAnimKey);
-            this.sfx.play(`${typePrefix}attack`);
+            this.playSfx(`${typePrefix}attack`);
             enemy.isAxeSwinging = true;
 
             // Set up callback to revert animation after attack completes
@@ -4108,7 +4120,11 @@ class MainScene extends Phaser.Scene {
     // Check if player is within detection range
     const playerDetected = distanceToPlayer < this.WEREWOLF_DETECTION_RANGE;
 
-    if (playerDetected) {
+    if (playerDetected && !werewolf.hasDetectedPlayer) {
+      // First detection: play howl sound
+      werewolf.hasDetectedPlayer = true;
+      this.playSfx("werewolfhowl");
+    } else if (playerDetected) {
       werewolf.hasDetectedPlayer = true;
     }
 
@@ -4234,7 +4250,7 @@ class MainScene extends Phaser.Scene {
         const typePrefix = enemy.type.toLowerCase();
 
         // Play enemy death sound
-        this.sfx.play(`${typePrefix}death`);
+        this.playSfx(`${typePrefix}death`);
 
         // Lower enemy's depth so it renders under the player after death
         enemy.setDepth(-1);
@@ -4336,7 +4352,7 @@ class MainScene extends Phaser.Scene {
 
         // Play hurt sound if player is still alive
         if (player.health > 0) {
-          this.sfx.play("playerhurt");
+          this.playSfx("playerhurt");
         }
 
         // Update health bar display (only update the health value sprite)
