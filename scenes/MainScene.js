@@ -305,6 +305,14 @@ class MainScene extends Phaser.Scene {
     this.armoredOrcIdleTimer = null;
     this.werewolfIdleTimer = null;
     this.wizardIdleTimer = null;
+
+    // Track active audio for each enemy type to stop them when enemy dies
+    this.activeEnemySounds = new Map([
+      [enemyTypes.ORC, []],
+      [enemyTypes.WIZARD, []],
+      [enemyTypes.WEREWOLF, []],
+      [enemyTypes.ARMOREDORC, []],
+    ]);
   }
 
   preload() {
@@ -572,13 +580,43 @@ class MainScene extends Phaser.Scene {
 
   // Play a sound effect by creating a new audio sprite instance
   // This allows multiple sound effects to play simultaneously (polyphonic playback)
-  playSfx(soundKey) {
+  playSfx(soundKey, enemyType = null) {
     try {
       const sfx = this.sound.addAudioSprite("sfx");
       sfx.play(soundKey);
+
+      // Track sound if it's associated with an enemy type
+      if (enemyType && this.activeEnemySounds.has(enemyType)) {
+        this.activeEnemySounds.get(enemyType).push(sfx);
+
+        // Remove from tracking when sound completes
+        sfx.once("complete", () => {
+          const sounds = this.activeEnemySounds.get(enemyType);
+          const index = sounds.indexOf(sfx);
+          if (index > -1) {
+            sounds.splice(index, 1);
+          }
+        });
+      }
     } catch (e) {
       // Silently fail if audio sprite or sound key doesn't exist
     }
+  }
+
+  // Stop all currently playing sounds for a specific enemy type
+  stopSoundsForEnemyType(enemyType) {
+    if (!this.activeEnemySounds.has(enemyType)) {
+      return;
+    }
+
+    const sounds = this.activeEnemySounds.get(enemyType);
+    sounds.forEach((sound) => {
+      if (sound && sound.isPlaying) {
+        sound.stop();
+      }
+    });
+    // Clear the array after stopping all sounds
+    sounds.length = 0;
   }
 
   // Check if any enemies of a specific type are alive
@@ -605,7 +643,7 @@ class MainScene extends Phaser.Scene {
 
       // Schedule new sound
       this[timerPropName] = this.time.delayedCall(delay, () => {
-        this.playSfx(soundKey);
+        this.playSfx(soundKey, enemyType);
         // Reschedule for next idle sound
         this.scheduleIdleSoundForEnemyType(enemyType);
       });
@@ -768,6 +806,16 @@ class MainScene extends Phaser.Scene {
       this.wizardIdleTimer.remove();
       this.wizardIdleTimer = null;
     }
+
+    // Clear all tracked enemy sounds
+    this.activeEnemySounds.forEach((sounds) => {
+      sounds.forEach((sound) => {
+        if (sound && sound.isPlaying) {
+          sound.stop();
+        }
+      });
+      sounds.length = 0;
+    });
 
     // Remove win/lose text if it exists
     if (this.resultText) {
@@ -3054,7 +3102,7 @@ class MainScene extends Phaser.Scene {
           wizard.lastAlignedAttackTime = this.time.now; // Set cooldown
 
           // Play wizard attack sound
-          this.playSfx("wizardattack");
+          this.playSfx("wizardattack", enemyTypes.WIZARD);
 
           // Spawn fireball at 80% through animation (960ms)
           this.time.delayedCall(960, () => {
@@ -3830,7 +3878,7 @@ class MainScene extends Phaser.Scene {
             enemy.anims.currentAnim.key !== attackAnimKey
           ) {
             enemy.play(attackAnimKey);
-            this.playSfx(`${typePrefix}attack`);
+            this.playSfx(`${typePrefix}attack`, enemy.type);
             enemy.isAxeSwinging = true;
 
             // Set up callback to revert animation after attack completes
@@ -4336,6 +4384,9 @@ class MainScene extends Phaser.Scene {
         // Mark enemy as dead
         enemy.isDead = true;
 
+        // Stop all currently playing sounds for this enemy type
+        this.stopSoundsForEnemyType(enemy.type);
+
         // Update idle sounds since this enemy type's count changed
         this.updateIdleSounds();
 
@@ -4542,6 +4593,16 @@ class MainScene extends Phaser.Scene {
 
     // Clean up audio filter
     this.cleanupAudioFilter();
+
+    // Clear all tracked enemy sounds
+    this.activeEnemySounds.forEach((sounds) => {
+      sounds.forEach((sound) => {
+        if (sound && sound.isPlaying) {
+          sound.stop();
+        }
+      });
+      sounds.length = 0;
+    });
 
     // Stop player movement
     if (this.player && this.player.body) {
