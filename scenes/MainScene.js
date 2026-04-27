@@ -280,6 +280,7 @@ class MainScene extends Phaser.Scene {
 
     // Door state
     this.doorUsed = false; // Prevent multiple door interactions per level
+    this.doorFailureLastTime = 0; // Track last door failure sound time for cooldown
 
     // Toast notification state
     this.toastText = null; // Reference to toast text object
@@ -367,7 +368,7 @@ class MainScene extends Phaser.Scene {
     this.load.json("sfx-json");
 
     // Load audio sprite for game sound effects
-    this.load.audioSprite("sfx", "assets/sounds.json", ["assets/sounds.wav"]);
+    this.load.audioSprite("sfx", "assets/sounds.json", ["assets/sounds.mp3"]);
   }
 
   // Initialize the low pass filter and cathedral reverb for background music
@@ -578,12 +579,50 @@ class MainScene extends Phaser.Scene {
     );
   }
 
+  // Get a random variant of a sound if multiple versions exist
+  // For example, "playerhurt" might have playerhurt, playerhurt2, playerhurt3, etc.
+  getRandomVariantSound(baseKey) {
+    const soundSprite = this.cache.json.get("sfx");
+    if (!soundSprite || !soundSprite.spritemap) {
+      return baseKey; // Fallback to base key if we can't access spritemap
+    }
+
+    const variants = [];
+
+    // Find the base key itself (no number suffix)
+    if (soundSprite.spritemap[baseKey]) {
+      variants.push(baseKey);
+    }
+
+    // Find all numbered variants (baseKey2, baseKey3, etc.)
+    let variantNum = 2;
+    let foundVariant = true;
+    while (foundVariant) {
+      const variantKey = `${baseKey}${variantNum}`;
+      if (soundSprite.spritemap[variantKey]) {
+        variants.push(variantKey);
+        variantNum++;
+      } else {
+        foundVariant = false;
+      }
+    }
+
+    // If we found variants, return a random one. Otherwise return the base key
+    if (variants.length > 0) {
+      return variants[Phaser.Math.Between(0, variants.length - 1)];
+    }
+
+    return baseKey;
+  }
+
   // Play a sound effect by creating a new audio sprite instance
   // This allows multiple sound effects to play simultaneously (polyphonic playback)
   playSfx(soundKey, enemyType = null) {
     try {
       const sfx = this.sound.addAudioSprite("sfx");
-      sfx.play(soundKey);
+      // Get random variant if multiple versions of this sound exist
+      const actualSoundKey = this.getRandomVariantSound(soundKey);
+      sfx.play(actualSoundKey);
 
       // Track sound if it's associated with an enemy type
       if (enemyType && this.activeEnemySounds.has(enemyType)) {
@@ -934,6 +973,7 @@ class MainScene extends Phaser.Scene {
 
     // Reset door state
     this.doorUsed = false;
+    this.doorFailureLastTime = 0;
 
     // Re-enable player input
     this.input.enabled = true;
@@ -1546,6 +1586,9 @@ class MainScene extends Phaser.Scene {
       this.backgroundMusic = null;
     }
 
+    // Play win music
+    this.playSfx("winmusic");
+
     // Clean up audio filter
     this.cleanupAudioFilter();
 
@@ -1725,6 +1768,7 @@ class MainScene extends Phaser.Scene {
 
     // Reset door state
     this.doorUsed = false;
+    this.doorFailureLastTime = 0;
   }
 
   create() {
@@ -3555,6 +3599,9 @@ class MainScene extends Phaser.Scene {
     // Create golden particles
     this.createKeyPickupParticles(key.x, key.y);
 
+    // Play key pickup sound
+    this.playSfx("keypickup");
+
     // Destroy the key
     key.destroy();
   }
@@ -3578,6 +3625,9 @@ class MainScene extends Phaser.Scene {
 
     // Create golden particles
     this.createKeyPickupParticles(sword.x, sword.y);
+
+    // Play sword pickup sound
+    this.playSfx("swordpickup");
 
     // Destroy the sword
     sword.destroy();
@@ -3605,10 +3655,25 @@ class MainScene extends Phaser.Scene {
   }
 
   handleDoorCollision(player, door) {
+    // Prevent any door interactions if game is already over
+    if (this.gameIsOver) {
+      return;
+    }
+
     // Only trigger if:
     // 1. Key has been picked up
     // 2. The wall tile is actually a door
     if (!this.keyPickedUp || !door.isDoorTile) {
+      // Play door failure sound if door is being interacted with
+      // Use cooldown to prevent spamming on every frame
+      if (door.isDoorTile) {
+        const now = this.time.now;
+        if (now - this.doorFailureLastTime > 500) {
+          // Only play if 500ms has passed since last failure sound
+          this.playSfx("doorfailure");
+          this.doorFailureLastTime = now;
+        }
+      }
       return;
     }
 
@@ -3617,6 +3682,9 @@ class MainScene extends Phaser.Scene {
       return;
     }
     this.doorUsed = true;
+
+    // Play door open sound
+    this.playSfx("dooropen");
 
     // Disable player input during transition
     this.input.enabled = false;
@@ -4581,6 +4649,11 @@ class MainScene extends Phaser.Scene {
 
     // Play player death sound
     this.playSfx("playerdead");
+
+    // Play death bell sound after 2 second delay
+    this.time.delayedCall(2000, () => {
+      this.playSfx("deathbell");
+    });
 
     // Stop potion spawner
     this.stopPotionSpawner();

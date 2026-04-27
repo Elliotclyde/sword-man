@@ -1,79 +1,274 @@
 {
-  "resources": ["sounds.wav"],
+  "resources": ["sounds.mp3"],
   "spritemap": {
     "playerhurt": {
-      "start": 3.5,
-      "end": 4.374,
+      "start": 1.577,
+      "end": 2.452,
       "loop": false
     },
     "playerdead": {
-      "start": 13.374,
-      "end": 15.374,
+      "start": 4.631,
+      "end": 6.631,
       "loop": false
     },
     "orcidle": {
-      "start": 25.874,
-      "end": 27.374,
+      "start": 11.262,
+      "end": 12.762,
       "loop": false
     },
     "orcattack": {
-      "start": 39.75,
-      "end": 40.5,
+      "start": 18.2,
+      "end": 18.95,
       "loop": false
     },
     "orcdeath": {
-      "start": 60.874,
-      "end": 63.499,
+      "start": 24.185,
+      "end": 26.81,
       "loop": false
     },
     "armoredorcidle": {
-      "start": 67.624,
-      "end": 70.124,
+      "start": 28.98,
+      "end": 31.48,
       "loop": false
     },
     "armoredorcattack": {
-      "start": 102.939,
-      "end": 104.374,
+      "start": 39.072,
+      "end": 40.507,
       "loop": false
     },
     "armoredorcdeath": {
-      "start": 112.21,
-      "end": 115.366,
+      "start": 44.338,
+      "end": 47.494,
       "loop": false
     },
     "werewolfidle": {
-      "start": 138.028,
-      "end": 141.075,
+      "start": 56.335,
+      "end": 59.383,
       "loop": false
     },
     "werewolfhowl": {
-      "start": 147.475,
-      "end": 152.844,
+      "start": 61.58,
+      "end": 66.95,
       "loop": false
     },
     "werewolfdeath": {
-      "start": 163.236,
-      "end": 167.009,
+      "start": 68.185,
+      "end": 71.959,
       "loop": false
     },
     "werewolfattack": {
-      "start": 172.698,
-      "end": 173.191,
+      "start": 73.852,
+      "end": 74.346,
       "loop": false
     },
     "wizardidle": {
-      "start": 177.447,
-      "end": 179.456,
+      "start": 74.972,
+      "end": 76.982,
       "loop": false
     },
     "wizardattack": {
-      "start": 200.13,
-      "end": 202.401,
+      "start": 81.372,
+      "end": 83.643,
       "loop": false
     },
     "wizarddeath": {
-      "start": 211.981,
-      "end": 214.139,
+      "start": 87.066,
+      "end": 89.224,
+      "loop": false
+    },
+    "playerhurt2": {
+      "start": 0.0,
+      "end": 0.805,
+      "loop": false
+    },
+    "playerhurt3": {
+      "start": 0.805,
+      "end": 1.567,
+      "loop": false
+    },
+    "playerhurt4": {
+      "start": 2.467,
+      "end": 3.229,
+      "loop": false
+    },
+    "playerhurt5": {
+      "start": 3.229,
+      "end": 3.94,
+      "loop": false
+    },
+    "playerhurt6": {
+      "start": 3.94,
+      "end": 4.6,
+      "loop": false
+    },
+    "playerdead2": {
+      "start": 6.654,
+      "end": 9.012,
+      "loop": false
+    },
+    "playerdead3": {
+      "start": 9.012,
+      "end": 11.251,
+      "loop": false
+    },
+    "orcidle2": {
+      "start": 12.8,
+      "end": 13.975,
+      "loop": false
+    },
+    "orcidle3": {
+      "start": 13.976,
+      "end": 15.731,
+      "loop": false
+    },
+    "orcidle4": {
+      "start": 15.732,
+      "end": 16.588,
+      "loop": false
+    },
+    "orcidle5": {
+      "start": 16.588,
+      "end": 17.821,
+      "loop": false
+    },
+    "orcattack2": {
+      "start": 19.04,
+      "end": 19.868,
+      "loop": false
+    },
+    "orcattack3": {
+      "start": 19.868,
+      "end": 20.883,
+      "loop": false
+    },
+    "orcdeath2": {
+      "start": 20.883,
+      "end": 24.138,
+      "loop": false
+    },
+    "orcdeath3": {
+      "start": 26.855,
+      "end": 28.858,
+      "loop": false
+    },
+    "armoredorcidle2": {
+      "start": 31.522,
+      "end": 35.048,
+      "loop": false
+    },
+    "armoredorcidle3": {
+      "start": 35.048,
+      "end": 36.467,
+      "loop": false
+    },
+    "armoredorcidle4": {
+      "start": 36.467,
+      "end": 38.136,
+      "loop": false
+    },
+    "armoredorcattack2": {
+      "start": 38.136,
+      "end": 39.006,
+      "loop": false
+    },
+    "armoredorcattack3": {
+      "start": 40.545,
+      "end": 42.112,
+      "loop": false
+    },
+    "armoredorcdeath2": {
+      "start": 42.112,
+      "end": 44.289,
+      "loop": false
+    },
+    "armoredorcdeath3": {
+      "start": 47.532,
+      "end": 50.725,
+      "loop": false
+    },
+    "armoredorcdeath4": {
+      "start": 50.725,
+      "end": 53.853,
+      "loop": false
+    },
+    "werewolfidle2": {
+      "start": 54.103,
+      "end": 56.294,
+      "loop": false
+    },
+    "werewolfidle3": {
+      "start": 59.458,
+      "end": 61.054,
+      "loop": false
+    },
+    "werewolfattack2": {
+      "start": 71.975,
+      "end": 73.158,
+      "loop": false
+    },
+    "werewolfattack3": {
+      "start": 73.158,
+      "end": 73.811,
+      "loop": false
+    },
+    "werewolfattack4": {
+      "start": 74.377,
+      "end": 74.943,
+      "loop": false
+    },
+    "wizardidle2": {
+      "start": 77.047,
+      "end": 79.268,
+      "loop": false
+    },
+    "wizardattack2": {
+      "start": 79.268,
+      "end": 81.332,
+      "loop": false
+    },
+    "wizardattack3": {
+      "start": 83.687,
+      "end": 85.25,
+      "loop": false
+    },
+    "wizardattack4": {
+      "start": 85.25,
+      "end": 87.006,
+      "loop": false
+    },
+    "wizarddeath2": {
+      "start": 89.313,
+      "end": 91.258,
+      "loop": false
+    },
+    "winmusic": {
+      "start": 91.28,
+      "end": 111.98,
+      "loop": false
+    },
+    "deathbell": {
+      "start": 111.975,
+      "end": 113.786,
+      "loop": false
+    },
+    "keypickup": {
+      "start": 113.816,
+      "end": 114.886,
+      "loop": false
+    },
+    "dooropen": {
+      "start": 114.886,
+      "end": 116.904,
+      "loop": false
+    },
+    "doorfailure": {
+      "start": 116.904,
+      "end": 117.514,
+      "loop": false
+    },
+    "swordpickup": {
+      "start": 117.54,
+      "end": 118.611,
       "loop": false
     }
   }
