@@ -3062,8 +3062,15 @@ class MainScene extends Phaser.Scene {
 
     this.physics.add.existing(enemy);
     enemy.body.setCollideWorldBounds(false);
-    enemy.body.setSize(20.4, 19.95, true);
-    enemy.body.setOffset(40, 38);
+
+    // Set physics body size and offset based on enemy type
+    if (type === enemyTypes.ARMOREDORC) {
+      enemy.body.setSize(30, 23, true);
+      enemy.body.setOffset(30, 36);
+    } else {
+      enemy.body.setSize(20.4, 19.95, true);
+      enemy.body.setOffset(40, 38);
+    }
 
     // Initialize enemy-specific properties
     enemy.isMoving = false;
@@ -3927,6 +3934,17 @@ class MainScene extends Phaser.Scene {
       // Apply flip based on direction (unless facing is locked during attack animation)
       if (!enemy.facingLocked) {
         enemy.setFlipX(enemyShouldFaceLeft);
+
+        // Adjust armoured Orc hitbox offset based on facing direction
+        if (enemy.type === enemyTypes.ARMOREDORC) {
+          if (enemyShouldFaceLeft) {
+            // Facing left: use original offset
+            enemy.body.setOffset(30, 36);
+          } else {
+            // Facing right: move hitbox left 20 pixels
+            enemy.body.setOffset(40, 36);
+          }
+        }
       }
 
       // Handle werewolf-specific movement logic
