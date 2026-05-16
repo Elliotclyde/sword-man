@@ -637,8 +637,11 @@ class MainScene extends Phaser.Scene {
           }
         });
       }
+
+      return sfx;
     } catch (e) {
       // Silently fail if audio sprite or sound key doesn't exist
+      return null;
     }
   }
 
@@ -1587,7 +1590,7 @@ class MainScene extends Phaser.Scene {
     }
 
     // Play win music
-    this.playSfx("winmusic");
+    this.winMusic = this.playSfx("winmusic");
 
     // Clean up audio filter
     this.cleanupAudioFilter();
@@ -1670,8 +1673,24 @@ class MainScene extends Phaser.Scene {
         this.backgroundMusic = null;
       }
 
+      // Stop win music if it's playing
+      if (this.winMusic && this.winMusic.isPlaying) {
+        this.winMusic.stop();
+        this.winMusic = null;
+      }
+
       // Clean up audio filter before restart
       this.cleanupAudioFilter();
+
+      // Stop all active sounds
+      this.activeEnemySounds.forEach((sounds) => {
+        sounds.forEach((sound) => {
+          if (sound && sound.isPlaying) {
+            sound.stop();
+          }
+        });
+        sounds.length = 0;
+      });
 
       // Ensure player is unfaded for restart
       this.player.setAlpha(1);
@@ -4818,6 +4837,16 @@ class MainScene extends Phaser.Scene {
           // Reset player abilities
           this.playerAbilities.dash = false;
           this.playerAbilities.attack = false;
+
+          // Stop all active sounds
+          this.activeEnemySounds.forEach((sounds) => {
+            sounds.forEach((sound) => {
+              if (sound && sound.isPlaying) {
+                sound.stop();
+              }
+            });
+            sounds.length = 0;
+          });
 
           this.time.delayedCall(10, () => {
             this.currentLevelIndex = 0;
