@@ -16,11 +16,19 @@ class MenuScene extends Phaser.Scene {
     super("MenuScene");
   }
 
+  preload() {
+    // Load castle background image
+    this.load.image("castle", "assets/castle.png");
+  }
+
   create() {
     // Initialize menu state
     this.currentScreen = "menu";
     this.currentMenuIndex = 0; // Start with "Play" focused
     this.menuItems = MENU_SCREENS.menu.items;
+
+    // Add castle background
+    this.add.image(400, 300, "castle").setDisplaySize(800, 600);
 
     // Set background color to black
     this.cameras.main.setBackgroundColor("#000000");
