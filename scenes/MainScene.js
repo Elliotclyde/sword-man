@@ -10,6 +10,7 @@ const enemyTypes = {
   WIZARD: "WIZARD",
   WEREWOLF: "WEREWOLF",
   ARMOREDORC: "ARMOREDORC",
+  BEHOLDER: "BEHOLDER",
 };
 
 // Enemy configuration: sprite asset, frame dimensions, and attack animation
@@ -50,6 +51,16 @@ const enemyConfigs = {
     health: 3,
     defaultTurnBehaviour: true,
   },
+  [enemyTypes.BEHOLDER]: {
+    assetKey: "beholder",
+    frameWidth: 64,
+    frameHeight: 64,
+    attackAnimKey: "beholder_attack",
+    canDamageOnTouch: true,
+    health: 7,
+    defaultTurnBehaviour: true,
+    speedMultiplier: 0.6,
+  },
 };
 
 class MainScene extends Phaser.Scene {
@@ -72,6 +83,7 @@ class MainScene extends Phaser.Scene {
             y: 500,
           },
         ],
+        hasPeninsulas: true,
       },
       {
         level: 2,
@@ -87,6 +99,7 @@ class MainScene extends Phaser.Scene {
             y: 500,
           },
         ],
+        hasPeninsulas: true,
       },
       {
         level: 3,
@@ -105,6 +118,7 @@ class MainScene extends Phaser.Scene {
             y: 300,
           },
         ],
+        hasPeninsulas: true,
       },
       {
         level: 4,
@@ -120,6 +134,7 @@ class MainScene extends Phaser.Scene {
             y: 200,
           },
         ],
+        hasPeninsulas: true,
       },
       {
         level: 5,
@@ -138,6 +153,7 @@ class MainScene extends Phaser.Scene {
             y: 100,
           },
         ],
+        hasPeninsulas: true,
       },
       {
         level: 6,
@@ -153,6 +169,7 @@ class MainScene extends Phaser.Scene {
             y: 500,
           },
         ],
+        hasPeninsulas: true,
       },
       {
         level: 7,
@@ -162,6 +179,7 @@ class MainScene extends Phaser.Scene {
         playerStartY: 500,
         startingMessage: [],
         customObjects: [],
+        hasPeninsulas: true,
       },
       {
         level: 8,
@@ -174,6 +192,7 @@ class MainScene extends Phaser.Scene {
         playerStartY: 100,
         startingMessage: [],
         customObjects: [],
+        hasPeninsulas: true,
       },
       {
         level: 9,
@@ -189,6 +208,7 @@ class MainScene extends Phaser.Scene {
             y: 300,
           },
         ],
+        hasPeninsulas: true,
       },
       {
         level: 10,
@@ -201,6 +221,7 @@ class MainScene extends Phaser.Scene {
         playerStartY: 100,
         startingMessage: [],
         customObjects: [],
+        hasPeninsulas: true,
       },
       {
         level: 11,
@@ -213,6 +234,17 @@ class MainScene extends Phaser.Scene {
         playerStartY: 100,
         startingMessage: [],
         customObjects: [],
+        hasPeninsulas: true,
+      },
+      {
+        level: 12,
+        enemies: [{ type: enemyTypes.BEHOLDER, count: 1 }],
+        potions: 0,
+        playerStartX: 100,
+        playerStartY: 100,
+        startingMessage: [],
+        customObjects: [],
+        hasPeninsulas: false,
       },
     ];
 
@@ -344,6 +376,11 @@ class MainScene extends Phaser.Scene {
     this.load.spritesheet("armoredorc", "assets/ArmoredOrc.png", {
       frameWidth: 100,
       frameHeight: 100,
+    });
+
+    this.load.spritesheet("beholder", "assets/beholder.png", {
+      frameWidth: 64,
+      frameHeight: 64,
     });
 
     // Dungeon.png is 160x160 with 16x16 tiles in a 10x10 grid
@@ -1120,18 +1157,22 @@ class MainScene extends Phaser.Scene {
       this.spawnWalls(tileSize, gridWidth, playableGridHeight, scale);
     }
 
-    // Regenerate peninsulas for this level
+    // Regenerate peninsulas for this level (if enabled for this level)
     if (this.wallGenerationParams) {
       const { tileSize, gridWidth, playableGridHeight, scale } =
         this.wallGenerationParams;
       const levelConfig = this.levels[this.currentLevelIndex];
-      this.generatePeninsulas(
-        tileSize,
-        gridWidth,
-        playableGridHeight,
-        scale,
-        levelConfig,
-      );
+      // Default to true if hasPeninsulas is not specified
+      const hasPeninsulas = levelConfig.hasPeninsulas !== false;
+      if (hasPeninsulas) {
+        this.generatePeninsulas(
+          tileSize,
+          gridWidth,
+          playableGridHeight,
+          scale,
+          levelConfig,
+        );
+      }
     }
 
     // Spawn new enemies based on current level configuration
@@ -2069,6 +2110,77 @@ class MainScene extends Phaser.Scene {
       frames: this.anims.generateFrameNumbers("armoredorc", {
         start: 63,
         end: 66,
+      }),
+      frameRate: 10,
+      repeat: 0,
+    });
+
+    // Create BEHOLDER animations using beholder spritesheet
+    this.anims.create({
+      key: "beholder_stand",
+      frames: this.anims.generateFrameNumbers("beholder", {
+        start: 144,
+        end: 155,
+      }),
+      frameRate: 10,
+      repeat: -1,
+    });
+
+    this.anims.create({
+      key: "beholder_walk_down",
+      frames: this.anims.generateFrameNumbers("beholder", {
+        start: 240,
+        end: 247,
+      }),
+      frameRate: 10,
+      repeat: -1,
+    });
+
+    this.anims.create({
+      key: "beholder_walk_up",
+      frames: this.anims.generateFrameNumbers("beholder", {
+        start: 252,
+        end: 259,
+      }),
+      frameRate: 10,
+      repeat: -1,
+    });
+
+    this.anims.create({
+      key: "beholder_walk_left",
+      frames: this.anims.generateFrameNumbers("beholder", {
+        start: 264,
+        end: 270,
+      }),
+      frameRate: 10,
+      repeat: -1,
+    });
+
+    this.anims.create({
+      key: "beholder_walk_right",
+      frames: this.anims.generateFrameNumbers("beholder", {
+        start: 276,
+        end: 282,
+      }),
+      frameRate: 10,
+      repeat: -1,
+    });
+
+    this.anims.create({
+      key: "beholder_attack",
+      frames: this.anims.generateFrameNumbers("beholder", {
+        start: 0,
+        end: 10,
+      }),
+      frameRate: 10,
+      repeat: 0,
+    });
+
+    this.anims.create({
+      key: "beholder_die",
+      frames: this.anims.generateFrameNumbers("beholder", {
+        start: 44,
+        end: 52,
       }),
       frameRate: 10,
       repeat: 0,
@@ -3067,6 +3179,11 @@ class MainScene extends Phaser.Scene {
     if (type === enemyTypes.ARMOREDORC) {
       enemy.body.setSize(30, 23, true);
       enemy.body.setOffset(30, 36);
+    } else if (type === enemyTypes.BEHOLDER) {
+      enemy.body.setSize(60, 60, true);
+      enemy.body.setOffset(2, 2);
+      // Initialize beholder direction tracking
+      enemy.beholderDirection = "down"; // Default direction
     } else {
       enemy.body.setSize(20.4, 19.95, true);
       enemy.body.setOffset(40, 38);
@@ -3914,35 +4031,63 @@ class MainScene extends Phaser.Scene {
       // Update enemy animations and direction
       let enemyShouldFaceLeft = false;
 
-      // Update horizontal direction based on movement
-      if (enemy.direction.x > 0) {
-        // Moving right
-        enemyShouldFaceLeft = false;
-        enemy.lastHorizontalDirection = "right";
-      } else if (enemy.direction.x < 0) {
-        // Moving left
-        enemyShouldFaceLeft = true;
-        enemy.lastHorizontalDirection = "left";
-      } else if (enemy.direction.y !== 0) {
-        // Moving vertically only, use last horizontal direction
-        enemyShouldFaceLeft = enemy.lastHorizontalDirection === "left";
+      // For beholder, track cardinal directions (up, down, left, right)
+      if (enemy.type === enemyTypes.BEHOLDER) {
+        if (!enemy.isMoving) {
+          // Idle: reset to default hitbox
+          enemy.body.setSize(60, 60, true);
+          enemy.body.setOffset(2, 2);
+        } else if (enemy.direction.x > 0) {
+          enemy.beholderDirection = "right";
+          enemy.body.setSize(44, 60, true);
+          enemy.body.setOffset(2, 2);
+        } else if (enemy.direction.x < 0) {
+          enemy.beholderDirection = "left";
+          enemy.body.setSize(44, 60, true);
+          enemy.body.setOffset(18, 2);
+        } else if (enemy.direction.y < 0) {
+          enemy.beholderDirection = "up";
+          // Facing up: use full width hitbox
+          enemy.body.setSize(60, 60, true);
+          enemy.body.setOffset(2, 2);
+        } else if (enemy.direction.y > 0) {
+          enemy.beholderDirection = "down";
+          // Facing down: use full width hitbox
+          enemy.body.setSize(60, 60, true);
+          enemy.body.setOffset(2, 2);
+        }
       } else {
-        // Not moving, use last horizontal direction
-        enemyShouldFaceLeft = enemy.lastHorizontalDirection === "left";
-      }
+        // Other enemies use flipX for horizontal facing
+        // Update horizontal direction based on movement
+        if (enemy.direction.x > 0) {
+          // Moving right
+          enemyShouldFaceLeft = false;
+          enemy.lastHorizontalDirection = "right";
+        } else if (enemy.direction.x < 0) {
+          // Moving left
+          enemyShouldFaceLeft = true;
+          enemy.lastHorizontalDirection = "left";
+        } else if (enemy.direction.y !== 0) {
+          // Moving vertically only, use last horizontal direction
+          enemyShouldFaceLeft = enemy.lastHorizontalDirection === "left";
+        } else {
+          // Not moving, use last horizontal direction
+          enemyShouldFaceLeft = enemy.lastHorizontalDirection === "left";
+        }
 
-      // Apply flip based on direction (unless facing is locked during attack animation)
-      if (!enemy.facingLocked) {
-        enemy.setFlipX(enemyShouldFaceLeft);
+        // Apply flip based on direction (unless facing is locked during attack animation)
+        if (!enemy.facingLocked) {
+          enemy.setFlipX(enemyShouldFaceLeft);
 
-        // Adjust armoured Orc hitbox offset based on facing direction
-        if (enemy.type === enemyTypes.ARMOREDORC) {
-          if (enemyShouldFaceLeft) {
-            // Facing left: use original offset
-            enemy.body.setOffset(30, 36);
-          } else {
-            // Facing right: move hitbox left 20 pixels
-            enemy.body.setOffset(40, 36);
+          // Adjust armoured Orc hitbox offset based on facing direction
+          if (enemy.type === enemyTypes.ARMOREDORC) {
+            if (enemyShouldFaceLeft) {
+              // Facing left: use original offset
+              enemy.body.setOffset(30, 36);
+            } else {
+              // Facing right: move hitbox left 20 pixels
+              enemy.body.setOffset(40, 36);
+            }
           }
         }
       }
@@ -3991,7 +4136,12 @@ class MainScene extends Phaser.Scene {
               enemy.isAxeSwinging = false;
               // Resume normal animations
               if (enemy.isMoving) {
-                enemy.play(`${typePrefix}_walk`);
+                // For beholder, use directional walk animation
+                if (enemy.type === enemyTypes.BEHOLDER) {
+                  enemy.play(`${typePrefix}_walk_${enemy.beholderDirection}`);
+                } else {
+                  enemy.play(`${typePrefix}_walk`);
+                }
               } else {
                 enemy.play(`${typePrefix}_stand`);
               }
@@ -4001,7 +4151,13 @@ class MainScene extends Phaser.Scene {
           // Player is not nearby, use normal animations (skip for attacking wizards)
           const typePrefix = enemy.type.toLowerCase();
           if (enemy.isMoving) {
-            const walkAnimKey = `${typePrefix}_walk`;
+            // For beholder, use directional walk animation
+            let walkAnimKey;
+            if (enemy.type === enemyTypes.BEHOLDER) {
+              walkAnimKey = `${typePrefix}_walk_${enemy.beholderDirection}`;
+            } else {
+              walkAnimKey = `${typePrefix}_walk`;
+            }
             if (
               !enemy.anims.isPlaying ||
               enemy.anims.currentAnim.key !== walkAnimKey
@@ -4395,17 +4551,27 @@ class MainScene extends Phaser.Scene {
       enemy.isMoving = !enemy.isMoving;
 
       if (enemy.isMoving) {
-        // Pick a random direction (8 directions including diagonals)
-        const directions = [
-          { x: 0, y: -1 }, // up
-          { x: 1, y: -1 }, // up-right
-          { x: 1, y: 0 }, // right
-          { x: 1, y: 1 }, // down-right
-          { x: 0, y: 1 }, // down
-          { x: -1, y: 1 }, // down-left
-          { x: -1, y: 0 }, // left
-          { x: -1, y: -1 }, // up-left
-        ];
+        // Beholder uses only 4 cardinal directions, other enemies use 8 directions
+        let directions;
+        if (enemy.type === enemyTypes.BEHOLDER) {
+          directions = [
+            { x: 0, y: -1 }, // up
+            { x: 1, y: 0 }, // right
+            { x: 0, y: 1 }, // down
+            { x: -1, y: 0 }, // left
+          ];
+        } else {
+          directions = [
+            { x: 0, y: -1 }, // up
+            { x: 1, y: -1 }, // up-right
+            { x: 1, y: 0 }, // right
+            { x: 1, y: 1 }, // down-right
+            { x: 0, y: 1 }, // down
+            { x: -1, y: 1 }, // down-left
+            { x: -1, y: 0 }, // left
+            { x: -1, y: -1 }, // up-left
+          ];
+        }
         enemy.direction = Phaser.Utils.Array.GetRandom(directions);
       }
     }
