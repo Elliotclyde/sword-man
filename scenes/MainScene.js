@@ -383,6 +383,12 @@ class MainScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
+    // Flame.png contains flame animation frames
+    this.load.spritesheet("flame", "assets/flame.png", {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+
     // Dungeon.png is 160x160 with 16x16 tiles in a 10x10 grid
     this.load.spritesheet("dungeon", "assets/Dungeon.png", {
       frameWidth: 16,
@@ -1034,6 +1040,11 @@ class MainScene extends Phaser.Scene {
             enemy.attackTimer.remove(false);
           }
 
+          // Clear beholder flame attack timer if it exists
+          if (enemy.flameAttackTimer) {
+            enemy.flameAttackTimer.remove(false);
+          }
+
           // Clear turn-around check timer if it exists
           if (enemy.turnAroundCheckTimer) {
             enemy.turnAroundCheckTimer.remove(false);
@@ -1088,6 +1099,28 @@ class MainScene extends Phaser.Scene {
         }
       });
       this.pendingFireballTimers = [];
+    }
+
+    // Remove all flames
+    if (this.flames) {
+      const flamesToDestroy = [...this.flames.children.entries];
+      flamesToDestroy.forEach((flame) => {
+        if (flame && !flame.destroyed) {
+          flame.destroy();
+        }
+      });
+      this.flames.clear();
+    }
+    this.flames = this.add.group();
+
+    // Cancel all pending flame timers
+    if (this.pendingFlameTimers) {
+      this.pendingFlameTimers.forEach((timer) => {
+        if (timer && !timer.paused) {
+          timer.remove();
+        }
+      });
+      this.pendingFlameTimers = [];
     }
 
     // Remove all potions
@@ -1236,6 +1269,18 @@ class MainScene extends Phaser.Scene {
       this.player,
       this.fireballs,
       this.handleFireballHit,
+      null,
+      this,
+    );
+
+    // Set up collision detection for player being hit by flames
+    if (this.playerFlameCollider) {
+      this.physics.world.removeCollider(this.playerFlameCollider);
+    }
+    this.playerFlameCollider = this.physics.add.overlap(
+      this.player,
+      this.flames,
+      this.handleFlameHit,
       null,
       this,
     );
@@ -1560,6 +1605,80 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  handleFlameHit(player, flame) {
+    if (this.gameIsOver || flame.destroyed) {
+      return;
+    }
+
+    // Check if player is currently invulnerable to damage
+    if (
+      this.playerLastHitTime &&
+      this.time.now - this.playerLastHitTime < 1000
+    ) {
+      // Player is invulnerable, destroy flame but don't take damage
+      flame.destroy();
+      return;
+    }
+
+    // Set player invulnerability timer
+    this.playerLastHitTime = this.time.now;
+
+    // Create blood particles
+    this.createBloodParticles(player.x, player.y, entityTypes.PLAYER);
+
+    // Reduce player health
+    player.health -= 1;
+
+    // Play hurt sound if player is still alive
+    if (player.health > 0) {
+      this.playSfx("playerhurt");
+    }
+
+    // Update health bar display (only update the health value sprite)
+    if (this.healthValueBar) {
+      // Frame mapping: 6 health -> frame 1, 5 health -> frame 2, ... 0 health -> frame 7
+      const healthFrame = Math.min(7, Math.max(1, 7 - player.health));
+      this.healthValueBar.setFrame(healthFrame);
+    }
+
+    // Create blood particles at health bar
+    this.createHealthBarBloodParticles();
+
+    // Visual feedback - flash player red and set transparency
+    player.setTint(0xff0000);
+    player.alpha = 0.7; // Make player semi-transparent
+
+    // Show fullscreen red effect for 10ms
+    this.hitEffect.setVisible(true);
+    this.time.delayedCall(10, () => {
+      if (this.hitEffect) {
+        this.hitEffect.setVisible(false);
+      }
+    });
+
+    // Gradually restore alpha over the invulnerability period
+    this.time.delayedCall(1000, () => {
+      if (player && !player.destroyed) {
+        player.alpha = 1;
+      }
+    });
+
+    this.time.delayedCall(200, () => {
+      if (player && !player.destroyed) {
+        player.clearTint();
+      }
+    });
+
+    // Destroy the flame
+    flame.destroy();
+
+    // Check for game over
+    if (player.health <= 0) {
+      player.alpha = 1;
+      this.gameOver();
+    }
+  }
+
   handleEnemyWallCollision(enemy, wall) {
     const currentTime = this.time.now;
     const timeSinceLastEdgeHit = currentTime - enemy.lastEdgeHitTime;
@@ -1860,6 +1979,7 @@ class MainScene extends Phaser.Scene {
     this.peninsulaSprites = this.add.group(); // Group to track peninsula corner sprites for cleanup
     this.peninsulaWalls = this.physics.add.staticGroup(); // Physics group for peninsula collision zones
     this.pendingFireballTimers = []; // Track pending fireball-related timers for cleanup
+    this.pendingFlameTimers = []; // Track pending flame-related timers for cleanup
 
     for (let y = 0; y < PLAYABLE_GRID_HEIGHT; y++) {
       for (let x = 0; x < gridWidth; x++) {
@@ -2181,6 +2301,16 @@ class MainScene extends Phaser.Scene {
       frames: this.anims.generateFrameNumbers("beholder", {
         start: 44,
         end: 52,
+      }),
+      frameRate: 10,
+      repeat: 0,
+    });
+
+    this.anims.create({
+      key: "beholder_flame",
+      frames: this.anims.generateFrameNumbers("flame", {
+        start: 0,
+        end: 4,
       }),
       frameRate: 10,
       repeat: 0,
@@ -3221,6 +3351,11 @@ class MainScene extends Phaser.Scene {
       enemy.alignmentCheckTime = 0; // Track last alignment check time
       this.scheduleWizardAttack(enemy);
     }
+
+    // If this is a beholder, schedule flame attacks
+    if (type === enemyTypes.BEHOLDER) {
+      this.scheduleBeholderFlameAttack(enemy);
+    }
   }
 
   spawnFireball(wizard) {
@@ -3256,6 +3391,42 @@ class MainScene extends Phaser.Scene {
     // Track this timer for cleanup during level initialization
     if (this.pendingFireballTimers) {
       this.pendingFireballTimers.push(fireballTimer);
+    }
+  }
+
+  spawnFlame(x, y) {
+    // Create a flame sprite at the specified position
+    const flame = this.add.sprite(x, y, "flame", 0);
+    flame.setScale(2);
+    flame.setDepth(2); // Render above player but below most enemies
+    flame.play("beholder_flame");
+
+    // Add physics to flame (static, doesn't move)
+    this.physics.add.existing(flame);
+    //flame.body.setSize(64, 64, true);
+    //flame.body.setOffset(0, 0);
+    flame.body.setSize(20.4, 19.95, true);
+    flame.body.setOffset(40, 38);
+
+    // Add to flames group
+    this.flames.add(flame);
+
+    // Destroy flame after animation completes
+    flame.once("animationcomplete-beholder_flame", () => {
+      if (flame && !flame.destroyed) {
+        flame.destroy();
+      }
+    });
+
+    // Fallback: destroy after 2 seconds if animation doesn't complete
+    const flameTimer = this.time.delayedCall(2000, () => {
+      if (flame && !flame.destroyed) {
+        flame.destroy();
+      }
+    });
+    // Track this timer for cleanup during level initialization
+    if (this.pendingFlameTimers) {
+      this.pendingFlameTimers.push(flameTimer);
     }
   }
 
@@ -3354,6 +3525,73 @@ class MainScene extends Phaser.Scene {
       // Track the attack timer too
       if (this.pendingFireballTimers) {
         this.pendingFireballTimers.push(wizard.attackTimer);
+      }
+    }
+  }
+
+  scheduleBeholderFlameAttack(beholder) {
+    // Only schedule attacks if beholder is not dead
+    if (!beholder.isDead) {
+      // Schedule next attack with randomized interval (3-5 seconds)
+      const attackInterval = Phaser.Math.Between(3000, 5000);
+
+      beholder.flameAttackTimer = this.time.delayedCall(attackInterval, () => {
+        if (!beholder.destroyed && !beholder.isDead) {
+          // Choose a random cardinal direction
+          const directions = ["up", "down", "left", "right"];
+          const randomDirection =
+            directions[Math.floor(Math.random() * directions.length)];
+
+          // Spawn flame line attack
+          this.spawnFlameLineAttack(beholder, randomDirection);
+
+          // Schedule next attack
+          this.scheduleBeholderFlameAttack(beholder);
+        }
+      });
+      // Track the attack timer for cleanup
+      if (this.pendingFlameTimers) {
+        this.pendingFlameTimers.push(beholder.flameAttackTimer);
+      }
+    }
+  }
+
+  spawnFlameLineAttack(beholder, direction) {
+    // Determine the starting position and direction offset
+    let xOffset = 0,
+      yOffset = 0;
+    const FLAME_COUNT = 7;
+    const FLAME_SPACING = 64; // 64px apart (matches sprite size)
+
+    // Map direction to position offsets
+    if (direction === "right") {
+      xOffset = 1;
+      yOffset = 0;
+    } else if (direction === "left") {
+      xOffset = -1;
+      yOffset = 0;
+    } else if (direction === "down") {
+      xOffset = 0;
+      yOffset = 1;
+    } else if (direction === "up") {
+      xOffset = 0;
+      yOffset = -1;
+    }
+
+    // Spawn flames with staggered timing (0ms, 200ms, 400ms, 600ms)
+    for (let i = 1; i <= FLAME_COUNT; i++) {
+      const flameX = beholder.x + xOffset * FLAME_SPACING * i + xOffset * 32; // offset by 32 to center on first position
+      const flameY = beholder.y + yOffset * FLAME_SPACING * i + yOffset * 32;
+      const delay = (i - 1) * 200; // 0ms, 200ms, 400ms, 600ms
+
+      const flameSpawnTimer = this.time.delayedCall(delay, () => {
+        if (!beholder.destroyed && !beholder.isDead) {
+          this.spawnFlame(flameX, flameY);
+        }
+      });
+      // Track this timer for cleanup
+      if (this.pendingFlameTimers) {
+        this.pendingFlameTimers.push(flameSpawnTimer);
       }
     }
   }
@@ -4741,15 +4979,24 @@ class MainScene extends Phaser.Scene {
           return;
         }
 
-        const enemyFacingLeft = enemy.flipX;
-        // If enemy is facing left, only hit player to the left
-        // If enemy is facing right, only hit player to the right
-        if (
-          (enemyFacingLeft && enemyIsToTheLeft) ||
-          (!enemyFacingLeft && !enemyIsToTheLeft)
-        ) {
-          // Enemy is on the wrong side, don't hit it
+        // Check if player is currently attacking
+        if (this.isPlayerSwinging) {
+          // Player is attacking, don't take damage
           return;
+        }
+
+        // For non-beholder enemies, check if they're facing the player
+        if (enemy.type !== enemyTypes.BEHOLDER) {
+          const enemyFacingLeft = enemy.flipX;
+          // If enemy is facing left, only hit player to the left
+          // If enemy is facing right, only hit player to the right
+          if (
+            (enemyFacingLeft && enemyIsToTheLeft) ||
+            (!enemyFacingLeft && !enemyIsToTheLeft)
+          ) {
+            // Enemy is on the wrong side, don't hit it
+            return;
+          }
         }
         enemy.hasRecentlyAttacked = true;
         this.time.delayedCall(500, () => {
