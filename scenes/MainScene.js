@@ -3268,9 +3268,8 @@ class MainScene extends Phaser.Scene {
     return false;
   }
 
-  spawnEnemy(type = enemyTypes.ORC) {
-    // Create an enemy at a random position, maintaining minimum distance from player
-    const MIN_SPAWN_DISTANCE = 200; // Minimum distance from player
+  findValidSpawnPosition(minSpawnDistance = 200) {
+    // Find a valid spawn position that is at least minSpawnDistance away from player and not on peninsula
     let randomX, randomY, distanceFromPlayer, onPeninsula;
     const scaledTileSize = 16 * this.tileScale;
 
@@ -3289,7 +3288,16 @@ class MainScene extends Phaser.Scene {
       const gridX = Math.round(randomX / scaledTileSize);
       const gridY = Math.round(randomY / scaledTileSize);
       onPeninsula = this.isPeninsulaTile(gridX, gridY);
-    } while (distanceFromPlayer < MIN_SPAWN_DISTANCE || onPeninsula);
+    } while (distanceFromPlayer < minSpawnDistance || onPeninsula);
+
+    return { x: randomX, y: randomY };
+  }
+
+  spawnEnemy(type = enemyTypes.ORC) {
+    // Create an enemy at a random position, maintaining minimum distance from player
+    const position = this.findValidSpawnPosition(200);
+    const randomX = position.x;
+    const randomY = position.y;
 
     // Get configuration for this enemy type
     const config = enemyConfigs[type];
@@ -3298,6 +3306,11 @@ class MainScene extends Phaser.Scene {
     enemy.setDepth(5); // Enemies render on top of player by default
     enemy.setRotation(0); // Ensure rotation is reset to normal
     enemy.type = type; // Store the enemy type for later reference
+
+    // Beholder flies above other enemies
+    if (type === enemyTypes.BEHOLDER) {
+      enemy.setDepth(6);
+    }
 
     // Play the appropriate stand animation based on enemy type
     enemy.play(`${type.toLowerCase()}_stand`);
@@ -3537,13 +3550,19 @@ class MainScene extends Phaser.Scene {
 
       beholder.flameAttackTimer = this.time.delayedCall(attackInterval, () => {
         if (!beholder.destroyed && !beholder.isDead) {
-          // Choose a random cardinal direction
-          const directions = ["up", "down", "left", "right"];
-          const randomDirection =
-            directions[Math.floor(Math.random() * directions.length)];
+          // 50/50 chance: either spawn flame line or spawn 2 orcs
+          if (Math.random() < 0.5) {
+            // Choose a random cardinal direction for flame attack
+            const directions = ["up", "down", "left", "right"];
+            const randomDirection =
+              directions[Math.floor(Math.random() * directions.length)];
 
-          // Spawn flame line attack
-          this.spawnFlameLineAttack(beholder, randomDirection);
+            // Spawn flame line attack
+            this.spawnFlameLineAttack(beholder, randomDirection);
+          } else {
+            // Spawn 2 orcs instead
+            this.spawnBeholderOrcs();
+          }
 
           // Schedule next attack
           this.scheduleBeholderFlameAttack(beholder);
@@ -3594,6 +3613,58 @@ class MainScene extends Phaser.Scene {
         this.pendingFlameTimers.push(flameSpawnTimer);
       }
     }
+  }
+
+  spawnBeholderOrcs() {
+    // Find a valid spawn position and spawn 2 orcs at the same location
+    const position = this.findValidSpawnPosition(200);
+
+    // Helper function to spawn an orc at a specific position
+    const spawnOrcAtPosition = (x, y) => {
+      const config = enemyConfigs[enemyTypes.ORC];
+      const orc = this.add.sprite(x, y, config.assetKey, 0);
+      orc.setScale(3);
+      orc.setDepth(5); // Enemies render on top of player by default
+      orc.setRotation(0); // Ensure rotation is reset to normal
+      orc.type = enemyTypes.ORC; // Store the enemy type for later reference
+
+      // Play the appropriate stand animation based on enemy type
+      orc.play(`${enemyTypes.ORC.toLowerCase()}_stand`);
+
+      this.physics.add.existing(orc);
+      orc.body.setCollideWorldBounds(false);
+
+      // Set physics body size and offset for orc
+      orc.body.setSize(20.4, 19.95, true);
+      orc.body.setOffset(40, 38);
+
+      // Initialize enemy-specific properties
+      orc.isMoving = false;
+      orc.direction = { x: 0, y: 0 };
+      orc.lastEdgeHitTime = 0;
+      orc.lastHorizontalDirection = "right";
+      orc.isDead = false;
+      orc.isAxeSwinging = false; // Track if enemy is currently attacking
+      orc.hasRecentlyAttacked = false;
+      orc.isAttacking = false; // Track if wizard is currently attacking
+      orc.health = config.health; // Initialize health from config
+      orc.lastHitTime = 0; // Track when enemy was last hit by player
+      orc.turnAroundCheckTimer = null; // Timer for sneak-up detection
+      orc.detectionSideOnCollision = null; // Track which side player was on at collision
+
+      // Add enemy to group
+      this.enemies.add(orc);
+
+      // Start the enemy behavior cycle
+      this.scheduleEnemyBehaviorChange(orc);
+    };
+
+    // Spawn both orcs at the exact same position
+    spawnOrcAtPosition(position.x, position.y);
+    spawnOrcAtPosition(position.x, position.y);
+
+    // Create light green particles at spawn location
+    this.createOrcSpawnParticles(position.x, position.y);
   }
 
   spawnPotion(x, y) {
@@ -4505,6 +4576,35 @@ class MainScene extends Phaser.Scene {
     const particleCount = Phaser.Math.Between(8, 12);
     for (let i = 0; i < particleCount; i++) {
       const particle = this.add.circle(x, y, 2, bloodColor, 1);
+      particle.setDepth(15);
+
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const speed = Phaser.Math.Between(50, 125);
+      const targetX = x + Math.cos(angle) * speed * 0.5;
+      const targetY = y + Math.sin(angle) * speed * 0.5;
+
+      this.tweens.add({
+        targets: particle,
+        x: targetX,
+        y: targetY,
+        alpha: 0,
+        radius: Phaser.Math.Between(4, 8),
+        duration: 500,
+        ease: "Quad.out",
+        onComplete: () => {
+          particle.destroy();
+        },
+      });
+    }
+  }
+
+  createOrcSpawnParticles(x, y) {
+    // Light green particles for orc spawning
+    const orcColor = 0x90ee90; // Light green
+
+    const particleCount = Phaser.Math.Between(8, 12);
+    for (let i = 0; i < particleCount; i++) {
+      const particle = this.add.circle(x, y, 2, orcColor, 1);
       particle.setDepth(15);
 
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
