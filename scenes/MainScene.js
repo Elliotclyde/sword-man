@@ -3550,8 +3550,13 @@ class MainScene extends Phaser.Scene {
 
       beholder.flameAttackTimer = this.time.delayedCall(attackInterval, () => {
         if (!beholder.destroyed && !beholder.isDead) {
+          // Count orcs spawned by the beholder
+          const beholderOrcCount = this.enemies.children.entries.filter(
+            (enemy) => enemy.type === enemyTypes.ORC && enemy.spawnedByBeholder,
+          ).length;
+
           // 50/50 chance: either spawn flame line or spawn 2 orcs
-          if (Math.random() < 0.5) {
+          if (beholderOrcCount >= 12 || Math.random() < 0.5) {
             // Choose a random cardinal direction for flame attack
             const directions = ["up", "down", "left", "right"];
             const randomDirection =
@@ -3560,7 +3565,6 @@ class MainScene extends Phaser.Scene {
             // Spawn flame line attack
             this.spawnFlameLineAttack(beholder, randomDirection);
           } else {
-            // Spawn 2 orcs instead
             this.spawnBeholderOrcs();
           }
 
@@ -3651,6 +3655,7 @@ class MainScene extends Phaser.Scene {
       orc.lastHitTime = 0; // Track when enemy was last hit by player
       orc.turnAroundCheckTimer = null; // Timer for sneak-up detection
       orc.detectionSideOnCollision = null; // Track which side player was on at collision
+      orc.spawnedByBeholder = true; // Mark this orc as spawned by the beholder
 
       // Add enemy to group
       this.enemies.add(orc);
@@ -4560,6 +4565,81 @@ class MainScene extends Phaser.Scene {
     });
   }
 
+  killEnemyWithAnimation(enemy) {
+    // Mark enemy as dead
+    enemy.isDead = true;
+
+    // Stop all currently playing sounds for this enemy type
+    this.stopSoundsForEnemyType(enemy.type);
+
+    // Update idle sounds since this enemy type's count changed
+    this.updateIdleSounds();
+
+    // Get enemy type prefix for death sound and animation
+    const typePrefix = enemy.type.toLowerCase();
+
+    // Play enemy death sound
+    this.playSfx(`${typePrefix}death`);
+
+    // Lower enemy's depth so it renders under the player after death
+    enemy.setDepth(-1);
+
+    // Stop enemy movement
+    enemy.body.setVelocity(0, 0);
+
+    // Play death animation
+    enemy.play(`${typePrefix}_die`);
+
+    // After death animation completes, start fade out
+    enemy.once(`animationcomplete-${typePrefix}_die`, () => {
+      // Stop animation so the last frame stays visible
+      enemy.stop();
+
+      // Check if this is the last enemy dying
+      const livingEnemies = this.enemies.children.entries.filter(
+        (e) => !e.destroyed && !e.isDead && e !== enemy,
+      );
+      if (livingEnemies.length === 0 && !this.keySpawned) {
+        // Mark that key will be spawned to prevent duplicate spawns
+        this.keySpawned = true;
+
+        // Schedule key spawn after a brief delay (let current enemy still be visible)
+        this.time.delayedCall(300, () => {
+          this.spawnKey(enemy.x, enemy.y);
+        });
+      }
+
+      // Create a tween to fade out over 2 seconds
+      enemy.fadeTween = this.tweens.add({
+        targets: enemy,
+        alpha: 0,
+        duration: 2000,
+        ease: "Linear",
+        onComplete: () => {
+          // Clean up the tween reference
+          if (enemy.fadeTween) {
+            enemy.fadeTween = null;
+          }
+          enemy.destroy();
+          // Check if all enemies are defeated
+          // this.checkWinCondition();
+        },
+      });
+    });
+  }
+
+  killAllOtherEnemies(beholder) {
+    // Kill all other enemies in the level with proper death animations
+    const enemiesToKill = this.enemies.children.entries.filter(
+      (e) => !e.destroyed && !e.isDead && e !== beholder,
+    );
+
+    // Kill each enemy with animation
+    enemiesToKill.forEach((enemy) => {
+      this.killEnemyWithAnimation(enemy);
+    });
+  }
+
   createBloodParticles(x, y, entityType) {
     let bloodColor;
     switch (entityType) {
@@ -4990,66 +5070,13 @@ class MainScene extends Phaser.Scene {
 
       // Check if enemy is dead
       if (enemy.health <= 0) {
-        // Mark enemy as dead
-        enemy.isDead = true;
+        // If this is a beholder, kill all other enemies first
+        if (enemy.type === enemyTypes.BEHOLDER) {
+          this.killAllOtherEnemies(enemy);
+        }
 
-        // Stop all currently playing sounds for this enemy type
-        this.stopSoundsForEnemyType(enemy.type);
-
-        // Update idle sounds since this enemy type's count changed
-        this.updateIdleSounds();
-
-        // Get enemy type prefix for death sound and animation
-        const typePrefix = enemy.type.toLowerCase();
-
-        // Play enemy death sound
-        this.playSfx(`${typePrefix}death`);
-
-        // Lower enemy's depth so it renders under the player after death
-        enemy.setDepth(-1);
-
-        // Stop enemy movement
-        enemy.body.setVelocity(0, 0);
-
-        // Play death animation
-        enemy.play(`${typePrefix}_die`);
-
-        // After death animation completes, start fade out
-        enemy.once(`animationcomplete-${typePrefix}_die`, () => {
-          // Stop animation so the last frame stays visible
-          enemy.stop();
-
-          // Check if this is the last enemy dying
-          const livingEnemies = this.enemies.children.entries.filter(
-            (e) => !e.destroyed && !e.isDead && e !== enemy,
-          );
-          if (livingEnemies.length === 0 && !this.keySpawned) {
-            // Mark that key will be spawned to prevent duplicate spawns
-            this.keySpawned = true;
-
-            // Schedule key spawn after a brief delay (let current enemy still be visible)
-            this.time.delayedCall(300, () => {
-              this.spawnKey(enemy.x, enemy.y);
-            });
-          }
-
-          // Create a tween to fade out over 2 seconds
-          enemy.fadeTween = this.tweens.add({
-            targets: enemy,
-            alpha: 0,
-            duration: 2000,
-            ease: "Linear",
-            onComplete: () => {
-              // Clean up the tween reference
-              if (enemy.fadeTween) {
-                enemy.fadeTween = null;
-              }
-              enemy.destroy();
-              // Check if all enemies are defeated
-              // this.checkWinCondition();
-            },
-          });
-        });
+        // Kill this enemy with proper animation
+        this.killEnemyWithAnimation(enemy);
       } else {
         // Enemy survived the hit - add damage feedback (red tint)
         enemy.setTint(0xff0000);
