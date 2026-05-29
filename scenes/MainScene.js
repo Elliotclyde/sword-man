@@ -3301,9 +3301,16 @@ class MainScene extends Phaser.Scene {
 
   spawnEnemy(type = enemyTypes.ORC) {
     // Create an enemy at a random position, maintaining minimum distance from player
-    const position = this.findValidSpawnPosition(200);
-    const randomX = position.x;
-    const randomY = position.y;
+    // Beholder always spawns at the center of the map
+    let randomX, randomY;
+    if (type === enemyTypes.BEHOLDER) {
+      randomX = 400; // Center X of 800px wide map
+      randomY = 300; // Center Y of 600px tall map
+    } else {
+      const position = this.findValidSpawnPosition(200);
+      randomX = position.x;
+      randomY = position.y;
+    }
 
     // Get configuration for this enemy type
     const config = enemyConfigs[type];
