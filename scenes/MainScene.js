@@ -291,7 +291,7 @@ class MainScene extends Phaser.Scene {
 
     // Background music gain node for independent volume control
     this.backgroundMusicGainNode = null; // Background music gain node
-    this.BACKGROUND_MUSIC_VOLUME = 0.2; // Independent background music volume
+    this.BACKGROUND_MUSIC_VOLUME = 0.3; // Independent background music volume
 
     // Key collectible state
     this.keyPickedUp = false; // Track if key collected this level
@@ -471,10 +471,39 @@ class MainScene extends Phaser.Scene {
       this.backgroundMusicGainNode.gain.value = this.BACKGROUND_MUSIC_VOLUME;
     }
 
-    // Connect the audio signal flow:
-    // backgroundMusic → backgroundMusicGainNode → filterNode → [dryGainNode ↘
-    //                                                                       mixGainNode → masterGainNode → destination
-    //                                                 convolverNode ↗ (via wetGainNode)
+    // Connect the filter chain nodes together first (even before music source connects)
+    // This ensures the chain is ready when audio needs to flow through it
+    // Connect dry and wet paths
+    this.filterNode.connect(this.dryGainNode);
+    this.filterNode.connect(this.convolverNode);
+
+    // Connect wet path through convolver to wetGainNode
+    this.convolverNode.connect(this.wetGainNode);
+
+    // Mix both dry and wet signals together
+    this.dryGainNode.connect(this.mixGainNode);
+    this.wetGainNode.connect(this.mixGainNode);
+
+    // Output through master gain to destination
+    this.mixGainNode.connect(this.masterGainNode);
+    this.masterGainNode.connect(audioContext.destination);
+
+    // Start the filter wave at current time
+    this.filterWaveStartTime = this.time.now;
+
+    // Generate independent random cycle durations for filter and reverb
+    this.currentFilterCycleDuration = this.generateRandomCycleDuration();
+    this.currentReverbCycleDuration = this.generateRandomCycleDuration();
+
+    // Set filter as active
+    this.isFilterActive = true;
+
+    // Connect the music source to the filter chain now that it exists
+    this.connectMusicSourceToFilter();
+  }
+
+  // Connect the music source to the filter chain (called after source is created)
+  connectMusicSourceToFilter() {
     if (this.backgroundMusic && this.backgroundMusic.source) {
       try {
         this.backgroundMusic.source.disconnect();
@@ -488,33 +517,9 @@ class MainScene extends Phaser.Scene {
       // Connect background music gain node to filter
       this.backgroundMusicGainNode.connect(this.filterNode);
 
-      // Split signal into dry and wet paths
-      this.filterNode.connect(this.dryGainNode);
-      this.filterNode.connect(this.convolverNode);
-
-      // Connect wet path through convolver to wetGainNode
-      this.convolverNode.connect(this.wetGainNode);
-
-      // Mix both dry and wet signals together
-      this.dryGainNode.connect(this.mixGainNode);
-      this.wetGainNode.connect(this.mixGainNode);
-
-      // Output through master gain to destination
-      this.mixGainNode.connect(this.masterGainNode);
-      this.masterGainNode.connect(audioContext.destination);
-
       // Initialize gain values - start with balanced dry/wet
       this.updateDryWetBalance();
     }
-
-    // Start the filter wave at current time
-    this.filterWaveStartTime = this.time.now;
-
-    // Generate independent random cycle durations for filter and reverb
-    this.currentFilterCycleDuration = this.generateRandomCycleDuration();
-    this.currentReverbCycleDuration = this.generateRandomCycleDuration();
-
-    this.isFilterActive = true;
   }
 
   // Handle audio chain reinitialization when background music completes
@@ -1427,10 +1432,11 @@ class MainScene extends Phaser.Scene {
       this.backgroundMusic = this.sound.add("darksichord", {
         loop: false,
       });
-      this.backgroundMusic.play();
 
       // Initialize the low pass filter for the background music
       this.initializeAudioFilter();
+      this.backgroundMusic.play();
+      this.connectMusicSourceToFilter();
 
       // Listen for when the music completes to manually loop and reinitialize audio chain
       this.backgroundMusic.once("complete", () => {
