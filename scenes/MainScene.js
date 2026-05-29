@@ -3078,7 +3078,7 @@ class MainScene extends Phaser.Scene {
     return this.isPeninsulaTile(gridX, gridY);
   }
 
-  findValidSpawnPosition(originalX, originalY, maxAttempts = 20) {
+  findValidSpawnPositionForObject(originalX, originalY, maxAttempts = 20) {
     // If original position is valid, use it
     if (!this.isPixelInPeninsula(originalX, originalY)) {
       return { x: originalX, y: originalY };
@@ -3918,7 +3918,7 @@ class MainScene extends Phaser.Scene {
 
   spawnKey(x, y) {
     // Find a valid spawn position that doesn't overlap with peninsulas
-    const validPos = this.findValidSpawnPosition(x, y);
+    const validPos = this.findValidSpawnPositionForObject(x, y);
 
     // Create key sprite at position
     this.key = this.add.sprite(validPos.x, validPos.y, "dungeon", 88);
@@ -3961,7 +3961,7 @@ class MainScene extends Phaser.Scene {
 
   spawnSword(x, y) {
     // Find a valid spawn position that doesn't overlap with peninsulas
-    const validPos = this.findValidSpawnPosition(x, y);
+    const validPos = this.findValidSpawnPositionForObject(x, y);
 
     // Create sword sprite at position
     this.sword = this.add.sprite(validPos.x, validPos.y, "dungeon", 100);
@@ -4004,7 +4004,7 @@ class MainScene extends Phaser.Scene {
 
   spawnBoots(x, y) {
     // Find a valid spawn position that doesn't overlap with peninsulas
-    const validPos = this.findValidSpawnPosition(x, y);
+    const validPos = this.findValidSpawnPositionForObject(x, y);
 
     // Create boots sprite at position
     this.boots = this.add.sprite(validPos.x, validPos.y, "dungeon", 101);
