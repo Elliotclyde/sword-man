@@ -8,6 +8,22 @@ const MENU_SCREENS = {
   },
   credits: {
     text: "created by Hugh Haworth",
+    music: "music by Hugh Haworth",
+    voiceActing: "voice-acting by Hugh Haworth",
+    sprites: [
+      {
+        title: "Tiny RPG Character Asset Pack",
+        url: "https://zerie.itch.io/tiny-rpg-character-asset-pack",
+      },
+      {
+        title: "Beholder Monsters Top-Down Pixel Art Sprites",
+        url: "https://free-game-assets.itch.io/beholder-monsters-top-down-pixel-art-sprites",
+      },
+      {
+        title: "Dungeon Asset Pack",
+        url: "https://pixel-poem.itch.io/dungeon-assetpuck",
+      },
+    ],
   },
 };
 
@@ -96,6 +112,18 @@ class MenuScene extends Phaser.Scene {
     if (this.creditsText) {
       this.creditsText.destroy();
     }
+    if (this.musicText) {
+      this.musicText.destroy();
+    }
+    if (this.voiceActingText) {
+      this.voiceActingText.destroy();
+    }
+    if (this.spritesHeadingText) {
+      this.spritesHeadingText.destroy();
+    }
+    if (this.spriteCreditsTexts) {
+      this.spriteCreditsTexts.forEach((text) => text.destroy());
+    }
     if (this.backHintText) {
       this.backHintText.destroy();
     }
@@ -139,9 +167,9 @@ class MenuScene extends Phaser.Scene {
 
   displayCreditsScreen() {
     const centerX = 400;
-    const centerY = 300;
+    const centerY = 50;
 
-    // Display credits text
+    // Display main credits text
     this.creditsText = this.add.text(
       centerX,
       centerY,
@@ -153,10 +181,74 @@ class MenuScene extends Phaser.Scene {
     );
     this.creditsText.setOrigin(0.5);
 
+    // Display music credits
+    this.musicText = this.add.text(
+      centerX,
+      centerY + 60,
+      MENU_SCREENS.credits.music,
+      {
+        fontSize: "24px",
+        fill: "#ffffff",
+      },
+    );
+    this.musicText.setOrigin(0.5);
+
+    // Display voice-acting credits
+    this.voiceActingText = this.add.text(
+      centerX,
+      centerY + 100,
+      MENU_SCREENS.credits.voiceActing,
+      {
+        fontSize: "24px",
+        fill: "#ffffff",
+      },
+    );
+    this.voiceActingText.setOrigin(0.5);
+
+    // Display sprites subheading
+    this.spritesHeadingText = this.add.text(centerX, centerY + 160, "Sprites", {
+      fontSize: "28px",
+      fill: "#ffffff",
+    });
+    this.spritesHeadingText.setOrigin(0.5);
+
+    // Display sprite credits
+    this.spriteCreditsTexts = [];
+    const sprites = MENU_SCREENS.credits.sprites;
+    let yOffset = centerY + 210;
+
+    sprites.forEach((sprite) => {
+      const spriteText = this.add.text(
+        centerX,
+        yOffset,
+        `${sprite.title}\n${sprite.url}`,
+        {
+          fontSize: "16px",
+          fill: "#ffffff",
+          align: "center",
+        },
+      );
+      spriteText.setOrigin(0.5);
+      spriteText.setInteractive();
+      spriteText.on("pointerdown", () => {
+        window.open(sprite.url, "_blank");
+      });
+      spriteText.on("pointerover", () => {
+        spriteText.setStyle({ fill: "#ffff00" });
+        this.game.canvas.style.cursor = "pointer";
+      });
+      spriteText.on("pointerout", () => {
+        spriteText.setStyle({ fill: "#ffffff" });
+        this.game.canvas.style.cursor = "default";
+      });
+      this.spriteCreditsTexts.push(spriteText);
+      yOffset += 40;
+    });
+
     // Display back hint
     this.backHintText = this.add.text(
       centerX,
-      centerY + 150,
+      centerY + 460,
       "Press ENTER to go back",
       {
         fontSize: "24px",
