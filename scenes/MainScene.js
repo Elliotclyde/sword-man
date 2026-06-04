@@ -3499,6 +3499,16 @@ class MainScene extends Phaser.Scene {
           wizard.once("animationcomplete-wizard_attack", () => {
             wizard.isAttacking = false;
             wizard.facingLocked = false; // Unlock facing direction after attack
+
+            // Check alignment again at end of attack - turn around if needed
+            const yDifference = Math.abs(wizard.y - this.player.y);
+            const HORIZONTAL_TOLERANCE = 50; // pixels
+            if (yDifference < HORIZONTAL_TOLERANCE) {
+              // Player is still aligned, check if we need to turn around
+              const playerIsToTheLeft = this.player.x < wizard.x;
+              wizard.flipX = playerIsToTheLeft;
+            }
+
             // Reschedule random attacks after aligned attack completes
             this.scheduleWizardAttack(wizard);
           });
@@ -4429,7 +4439,12 @@ class MainScene extends Phaser.Scene {
       }
 
       // Handle wizard-specific alignment attacks (every 200ms for balanced frequency)
-      if (enemy.type === enemyTypes.WIZARD && !enemy.isDead) {
+      // Skip alignment checks while attacking - will check again at end of attack
+      if (
+        enemy.type === enemyTypes.WIZARD &&
+        !enemy.isDead &&
+        !enemy.isAttacking
+      ) {
         if (this.time.now - enemy.alignmentCheckTime >= 200) {
           this.checkAndExecuteAlignedAttack(enemy);
           enemy.alignmentCheckTime = this.time.now;
