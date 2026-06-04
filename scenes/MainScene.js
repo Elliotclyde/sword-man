@@ -1065,6 +1065,8 @@ class MainScene extends Phaser.Scene {
           const typePrefix = enemy.type ? enemy.type.toLowerCase() : "orc";
           enemy.off(`animationcomplete-${typePrefix}_die`);
           enemy.off(`animationcomplete-${typePrefix}_attack`);
+          // Also remove any other animation listeners that might be attached
+          enemy.off();
 
           // Stop any current animations
           if (enemy.anims) {
@@ -1099,7 +1101,7 @@ class MainScene extends Phaser.Scene {
     // Cancel all pending fireball timers
     if (this.pendingFireballTimers) {
       this.pendingFireballTimers.forEach((timer) => {
-        if (timer && !timer.paused) {
+        if (timer) {
           timer.remove();
         }
       });
@@ -3489,11 +3491,15 @@ class MainScene extends Phaser.Scene {
           this.playSfx("wizardattack", enemyTypes.WIZARD);
 
           // Spawn fireball at 80% through animation (960ms)
-          this.time.delayedCall(960, () => {
+          const fireballSpawnTimer = this.time.delayedCall(960, () => {
             if (!wizard.destroyed && !wizard.isDead) {
               this.spawnFireball(wizard);
             }
           });
+          // Track this timer for cleanup
+          if (this.pendingFireballTimers) {
+            this.pendingFireballTimers.push(fireballSpawnTimer);
+          }
 
           // Clear attacking flag when animation completes
           wizard.once("animationcomplete-wizard_attack", () => {
