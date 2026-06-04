@@ -62,8 +62,10 @@ class MenuScene extends Phaser.Scene {
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         if (this.currentScreen === "menu") {
           this.handleMenuNavigation(event.key);
+        } else if (this.currentScreen === "credits") {
+          this.handleCreditsNavigation(event.key);
         }
-      } else if (event.key === "Enter") {
+      } else if (event.key === "Enter" || event.key === " ") {
         this.handleMenuSelect();
       }
     });
@@ -81,6 +83,19 @@ class MenuScene extends Phaser.Scene {
     this.displayMenu();
   }
 
+  handleCreditsNavigation(key) {
+    // Calculate total items: sprites + 1 back button
+    const totalItems = MENU_SCREENS.credits.sprites.length + 1;
+
+    if (key === "ArrowUp") {
+      this.currentCreditsIndex =
+        (this.currentCreditsIndex - 1 + totalItems) % totalItems;
+    } else if (key === "ArrowDown") {
+      this.currentCreditsIndex = (this.currentCreditsIndex + 1) % totalItems;
+    }
+    this.displayMenu();
+  }
+
   handleMenuSelect() {
     if (this.currentScreen === "menu") {
       const selectedItem = this.menuItems[this.currentMenuIndex];
@@ -90,19 +105,39 @@ class MenuScene extends Phaser.Scene {
           break;
         case "credits":
           this.currentScreen = "credits";
+          this.currentCreditsIndex = 0; // Start with first sprite focused
           this.displayMenu();
           break;
       }
     } else if (this.currentScreen === "credits") {
-      // Return to menu from credits
-      this.currentScreen = "menu";
-      this.currentMenuIndex = 0;
-      this.displayMenu();
+      // Check if back button is selected
+      const totalItems = MENU_SCREENS.credits.sprites.length + 1;
+      if (this.currentCreditsIndex === totalItems - 1) {
+        // Back button is selected
+        this.currentScreen = "menu";
+        this.currentMenuIndex = 0;
+        this.clearAllElements();
+        this.displayMenu();
+      } else {
+        // Open the sprite link
+        const sprite = MENU_SCREENS.credits.sprites[this.currentCreditsIndex];
+        window.open(sprite.url, "_blank");
+      }
     }
   }
 
   displayMenu() {
-    // Clear previous text
+    this.clearAllElements();
+
+    if (this.currentScreen === "menu") {
+      this.displayMainMenu();
+    } else if (this.currentScreen === "credits") {
+      this.displayCreditsScreen();
+    }
+  }
+
+  clearAllElements() {
+    // Clear all text elements
     if (this.menuTitle) {
       this.menuTitle.destroy();
     }
@@ -124,14 +159,8 @@ class MenuScene extends Phaser.Scene {
     if (this.spriteCreditsTexts) {
       this.spriteCreditsTexts.forEach((text) => text.destroy());
     }
-    if (this.backHintText) {
-      this.backHintText.destroy();
-    }
-
-    if (this.currentScreen === "menu") {
-      this.displayMainMenu();
-    } else if (this.currentScreen === "credits") {
-      this.displayCreditsScreen();
+    if (this.backButton) {
+      this.backButton.destroy();
     }
   }
 
@@ -167,7 +196,7 @@ class MenuScene extends Phaser.Scene {
 
   displayCreditsScreen() {
     const centerX = 400;
-    const centerY = 50;
+    const centerY = 150;
 
     // Display main credits text
     this.creditsText = this.add.text(
@@ -215,48 +244,62 @@ class MenuScene extends Phaser.Scene {
     // Display sprite credits
     this.spriteCreditsTexts = [];
     const sprites = MENU_SCREENS.credits.sprites;
-    let yOffset = centerY + 210;
+    let yOffset = centerY + 190;
 
-    sprites.forEach((sprite) => {
-      const spriteText = this.add.text(
-        centerX,
-        yOffset,
-        `${sprite.title}\n${sprite.url}`,
-        {
-          fontSize: "16px",
-          fill: "#ffffff",
-          align: "center",
-        },
-      );
+    sprites.forEach((sprite, index) => {
+      const isSelected = index === this.currentCreditsIndex;
+      const alpha = isSelected ? 1.0 : 0.5;
+
+      const spriteText = this.add.text(centerX, yOffset, sprite.title, {
+        fontSize: "16px",
+        fill: "#ffffff",
+        align: "center",
+      });
       spriteText.setOrigin(0.5);
+      spriteText.setAlpha(alpha);
       spriteText.setInteractive();
       spriteText.on("pointerdown", () => {
         window.open(sprite.url, "_blank");
       });
       spriteText.on("pointerover", () => {
-        spriteText.setStyle({ fill: "#ffff00" });
+        spriteText.setAlpha(1.0);
         this.game.canvas.style.cursor = "pointer";
       });
       spriteText.on("pointerout", () => {
-        spriteText.setStyle({ fill: "#ffffff" });
+        const isCurrentSelected = this.currentCreditsIndex === index;
+        spriteText.setAlpha(isCurrentSelected ? 1.0 : 0.5);
         this.game.canvas.style.cursor = "default";
       });
       this.spriteCreditsTexts.push(spriteText);
-      yOffset += 40;
+      yOffset += 20;
     });
 
-    // Display back hint
-    this.backHintText = this.add.text(
-      centerX,
-      centerY + 460,
-      "Press ENTER to go back",
-      {
-        fontSize: "24px",
-        fill: "#ffffff",
-        alpha: 0.5,
-      },
-    );
-    this.backHintText.setOrigin(0.5);
+    // Display back button
+    const isBackSelected = this.currentCreditsIndex === sprites.length;
+    const backAlpha = isBackSelected ? 1.0 : 0.5;
+
+    this.backButton = this.add.text(centerX, yOffset + 20, "Back", {
+      fontSize: "24px",
+      fill: "#ffffff",
+      align: "center",
+    });
+    this.backButton.setOrigin(0.5);
+    this.backButton.setAlpha(backAlpha);
+    this.backButton.setInteractive();
+    this.backButton.on("pointerdown", () => {
+      this.currentScreen = "menu";
+      this.currentMenuIndex = 0;
+      this.displayMenu();
+    });
+    this.backButton.on("pointerover", () => {
+      this.backButton.setAlpha(1.0);
+      this.game.canvas.style.cursor = "pointer";
+    });
+    this.backButton.on("pointerout", () => {
+      const isSelected = this.currentCreditsIndex === sprites.length;
+      this.backButton.setAlpha(isSelected ? 1.0 : 0.5);
+      this.game.canvas.style.cursor = "default";
+    });
   }
 }
 
