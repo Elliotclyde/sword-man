@@ -56,7 +56,7 @@ const enemyConfigs = {
     frameWidth: 64,
     frameHeight: 64,
     attackAnimKey: "beholder_attack",
-    canDamageOnTouch: true,
+    canDamageOnTouch: false,
     health: 7,
     defaultTurnBehaviour: true,
     speedMultiplier: 0.6,
@@ -3574,8 +3574,8 @@ class MainScene extends Phaser.Scene {
   scheduleBeholderFlameAttack(beholder) {
     // Only schedule attacks if beholder is not dead
     if (!beholder.isDead) {
-      // Schedule next attack with randomized interval (3-5 seconds)
-      const attackInterval = Phaser.Math.Between(3000, 5000);
+      // Schedule next attack with randomized interval (1-1.67 seconds, 3x more frequent)
+      const attackInterval = Phaser.Math.Between(1000, 1667);
 
       beholder.flameAttackTimer = this.time.delayedCall(attackInterval, () => {
         if (!beholder.destroyed && !beholder.isDead) {
@@ -3584,17 +3584,83 @@ class MainScene extends Phaser.Scene {
             (enemy) => enemy.type === enemyTypes.ORC && enemy.spawnedByBeholder,
           ).length;
 
-          // 50/50 chance: either spawn flame line or spawn 2 orcs
-          if (beholderOrcCount >= 12 || Math.random() < 0.5) {
-            // Choose a random cardinal direction for flame attack
-            const directions = ["up", "down", "left", "right"];
-            const randomDirection =
-              directions[Math.floor(Math.random() * directions.length)];
+          // 80% chance for flame attack, 20% chance to spawn orcs
+          if (beholderOrcCount >= 12 || Math.random() < 0.8) {
+            // Play attack animation for flame attack
+            if (
+              beholder.anims &&
+              (!beholder.anims.isPlaying ||
+                beholder.anims.currentAnim.key !== "beholder_attack")
+            ) {
+              beholder.play("beholder_attack");
+              this.playSfx("beholderattack", enemyTypes.BEHOLDER);
+              beholder.isAxeSwinging = true;
 
-            // Spawn flame line attack
-            this.spawnFlameLineAttack(beholder, randomDirection);
+              // Set up callback to revert animation after attack completes
+              beholder.once("animationcomplete-beholder_attack", () => {
+                beholder.isAxeSwinging = false;
+                // Resume normal animations
+                if (beholder.isMoving) {
+                  beholder.play(`beholder_walk_${beholder.beholderDirection}`);
+                } else {
+                  beholder.play("beholder_stand");
+                }
+              });
+            }
+
+            // Determine cardinal direction based on player position
+            const playerX = this.player.x;
+            const playerY = this.player.y;
+            const beholderX = beholder.x;
+            const beholderY = beholder.y;
+
+            const deltaX = playerX - beholderX;
+            const deltaY = playerY - beholderY;
+            const absDeltaX = Math.abs(deltaX);
+            const absDeltaY = Math.abs(deltaY);
+
+            let fireDirection;
+            if (absDeltaX > absDeltaY) {
+              // Closer horizontally
+              fireDirection = deltaX > 0 ? "right" : "left";
+            } else {
+              // Closer vertically
+              fireDirection = deltaY > 0 ? "down" : "up";
+            }
+
+            this.time.delayedCall(800, () => {
+              if (!beholder.destroyed && !beholder.isDead) {
+                this.spawnFlameLineAttack(beholder, fireDirection);
+              }
+            });
           } else {
-            this.spawnBeholderOrcs();
+            // Play attack animation for orc spawn
+            if (
+              beholder.anims &&
+              (!beholder.anims.isPlaying ||
+                beholder.anims.currentAnim.key !== "beholder_attack")
+            ) {
+              beholder.play("beholder_attack");
+              this.playSfx("beholderattack", enemyTypes.BEHOLDER);
+              beholder.isAxeSwinging = true;
+
+              // Set up callback to revert animation after attack completes
+              beholder.once("animationcomplete-beholder_attack", () => {
+                beholder.isAxeSwinging = false;
+                // Resume normal animations
+                if (beholder.isMoving) {
+                  beholder.play(`beholder_walk_${beholder.beholderDirection}`);
+                } else {
+                  beholder.play("beholder_stand");
+                }
+              });
+            }
+
+            this.time.delayedCall(800, () => {
+              if (!beholder.destroyed && !beholder.isDead) {
+                this.spawnBeholderOrcs();
+              }
+            });
           }
 
           // Schedule next attack
@@ -4467,8 +4533,12 @@ class MainScene extends Phaser.Scene {
           this.player.y,
         );
 
-        if (distanceToPlayer < 100 && enemy.type !== enemyTypes.WIZARD) {
-          // Player is nearby, play attack animation (but not for wizards)
+        if (
+          distanceToPlayer < 100 &&
+          enemy.type !== enemyTypes.WIZARD &&
+          enemy.type !== enemyTypes.BEHOLDER
+        ) {
+          // Player is nearby, play attack animation (but not for wizards or beholders)
           const typePrefix = enemy.type.toLowerCase();
           const attackAnimKey = `${typePrefix}_attack`;
           if (
