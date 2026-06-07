@@ -3939,6 +3939,7 @@ class MainScene extends Phaser.Scene {
     // Restore 2 health (capped at 6)
     const oldHealth = player.health;
     player.health = Math.min(6, player.health + 2);
+    this.playSfx("potion");
 
     // Only show effects if health actually increased
     if (player.health > oldHealth) {
