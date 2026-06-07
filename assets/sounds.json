@@ -270,6 +270,46 @@
       "start": 117.54,
       "end": 118.611,
       "loop": false
+    },
+    "boots": {
+      "start": 124.118,
+      "end": 125.409,
+      "loop": false
+    },
+    "potion": {
+      "start": 118.642,
+      "end": 120.501,
+      "loop": false
+    },
+    "footsteps": {
+      "start": 120.524,
+      "end": 124.093,
+      "loop": false
+    },
+    "swing1": {
+      "start": 125.428,
+      "end": 125.974,
+      "loop": false
+    },
+    "swing2": {
+      "start": 125.982,
+      "end": 126.309,
+      "loop": false
+    },
+    "swing3": {
+      "start": 126.316,
+      "end": 126.703,
+      "loop": false
+    },
+    "messageclick": {
+      "start": 126.71,
+      "end": 127.157,
+      "loop": false
+    },
+    "scream": {
+      "start": 127.16,
+      "end": 130.911,
+      "loop": false
     }
   }
 }

@@ -752,6 +752,7 @@ class MainScene extends Phaser.Scene {
     this.scheduleIdleSoundForEnemyType(enemyTypes.ARMOREDORC);
     this.scheduleIdleSoundForEnemyType(enemyTypes.WEREWOLF);
     this.scheduleIdleSoundForEnemyType(enemyTypes.WIZARD);
+    this.scheduleIdleSoundForEnemyType(enemyTypes.BEHOLDER);
   }
 
   // Update the filter frequency and dry/wet balance with independent triangle wave oscillation
@@ -3592,8 +3593,7 @@ class MainScene extends Phaser.Scene {
               (!beholder.anims.isPlaying ||
                 beholder.anims.currentAnim.key !== "beholder_attack")
             ) {
-              beholder.play("beholder_attack");
-              this.playSfx("beholderattack", enemyTypes.BEHOLDER);
+              this.playSfx("scream", enemyTypes.BEHOLDER);
               beholder.isAxeSwinging = true;
 
               // Set up callback to revert animation after attack completes
@@ -3640,8 +3640,6 @@ class MainScene extends Phaser.Scene {
               (!beholder.anims.isPlaying ||
                 beholder.anims.currentAnim.key !== "beholder_attack")
             ) {
-              beholder.play("beholder_attack");
-              this.playSfx("beholderattack", enemyTypes.BEHOLDER);
               beholder.isAxeSwinging = true;
 
               // Set up callback to revert animation after attack completes
@@ -4196,6 +4194,9 @@ class MainScene extends Phaser.Scene {
     // Unlock dash ability
     this.playerAbilities.dash = true;
 
+    // Play boots pickup sound
+    this.playSfx("boots");
+
     // Show toast message
     this.showToast("X key to dash");
 
@@ -4366,6 +4367,12 @@ class MainScene extends Phaser.Scene {
       this.lastAttackTime = this.time.now;
       this.player.play("sword");
       this.isPlayerSwinging = true;
+
+      // Play random swing sound
+      const swingSounds = ["swing1", "swing2", "swing3"];
+      const randomSwing =
+        swingSounds[Math.floor(Math.random() * swingSounds.length)];
+      this.playSfx(randomSwing);
 
       // Set up callback to revert animation after sword swing completes
       this.player.once("animationcomplete-sword", () => {
@@ -4684,6 +4691,11 @@ class MainScene extends Phaser.Scene {
 
     // Play enemy death sound
     this.playSfx(`${typePrefix}death`);
+
+    // Play scream sound when beholder dies
+    if (enemy.type === enemyTypes.BEHOLDER) {
+      this.playSfx("scream", enemyTypes.BEHOLDER);
+    }
 
     // Lower enemy's depth so it renders under the player after death
     enemy.setDepth(-1);
