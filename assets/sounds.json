@@ -310,6 +310,16 @@
       "start": 127.16,
       "end": 130.911,
       "loop": false
+    },
+    "scream2": {
+      "start": 130.928,
+      "end": 134.888,
+      "loop": false
+    },
+    "scream3": {
+      "start": 134.9,
+      "end": 139.709,
+      "loop": false
     }
   }
 }

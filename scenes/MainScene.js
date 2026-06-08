@@ -3383,6 +3383,7 @@ class MainScene extends Phaser.Scene {
 
     // If this is a beholder, schedule flame attacks
     if (type === enemyTypes.BEHOLDER) {
+      enemy.beholderAttackCount = 0; // Initialize attack counter for scream timing
       this.scheduleBeholderFlameAttack(enemy);
     }
   }
@@ -3587,13 +3588,19 @@ class MainScene extends Phaser.Scene {
 
           // 80% chance for flame attack, 20% chance to spawn orcs
           if (beholderOrcCount >= 12 || Math.random() < 0.8) {
+            // Increment attack count
+            beholder.beholderAttackCount++;
             // Play attack animation for flame attack
             if (
               beholder.anims &&
               (!beholder.anims.isPlaying ||
                 beholder.anims.currentAnim.key !== "beholder_attack")
             ) {
-              this.playSfx("scream", enemyTypes.BEHOLDER);
+              // Scream on first attack, then every 3rd attack (1, 4, 7, 10, etc.)
+              if (beholder.beholderAttackCount % 3 === 1) {
+                const randomScream = this.getRandomVariantSound("scream");
+                this.playSfx(randomScream, enemyTypes.BEHOLDER);
+              }
               beholder.isAxeSwinging = true;
 
               // Set up callback to revert animation after attack completes
@@ -4695,7 +4702,8 @@ class MainScene extends Phaser.Scene {
 
     // Play scream sound when beholder dies
     if (enemy.type === enemyTypes.BEHOLDER) {
-      this.playSfx("scream", enemyTypes.BEHOLDER);
+      const randomScream = this.getRandomVariantSound("scream");
+      this.playSfx(randomScream, enemyTypes.BEHOLDER);
     }
 
     // Lower enemy's depth so it renders under the player after death
