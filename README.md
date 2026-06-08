@@ -1,4 +1,4 @@
-# Sword man
+# This Dungeon Eternal
 
 A completely vibe coded phaser js game using free sprites from itch.io.
 

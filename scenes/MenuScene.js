@@ -175,8 +175,8 @@ class MenuScene extends Phaser.Scene {
     const spacing = 80;
 
     // Display title
-    this.menuTitle = this.add.text(centerX, 150, "SWORD MAN", {
-      fontSize: "64px",
+    this.menuTitle = this.add.text(centerX, 150, "THIS DUNGEON ETERNAL", {
+      fontSize: "48px",
       fill: "#ffffff",
     });
     this.menuTitle.setOrigin(0.5);

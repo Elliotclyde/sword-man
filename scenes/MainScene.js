@@ -877,6 +877,9 @@ class MainScene extends Phaser.Scene {
     // Reset game over flag
     this.gameIsOver = false;
 
+    // Reset death cause tracking
+    this.lastDeathCause = null;
+
     // Stop any existing potion spawner
     this.stopPotionSpawner();
 
@@ -920,6 +923,12 @@ class MainScene extends Phaser.Scene {
       this.playAgainButton.setVisible(false);
       this.playAgainButton.destroy();
       this.playAgainButton = null;
+    }
+
+    // Remove share button if it exists
+    if (this.shareButton) {
+      this.shareButton.destroy();
+      this.shareButton = null;
     }
 
     // Remove space key listener if it exists
@@ -1610,6 +1619,7 @@ class MainScene extends Phaser.Scene {
     // Check for game over
     if (player.health <= 0) {
       player.alpha = 1;
+      this.lastDeathCause = enemyTypes.ORC;
       this.gameOver();
     }
   }
@@ -1684,6 +1694,7 @@ class MainScene extends Phaser.Scene {
     // Check for game over
     if (player.health <= 0) {
       player.alpha = 1;
+      this.lastDeathCause = enemyTypes.WIZARD;
       this.gameOver();
     }
   }
@@ -1744,6 +1755,37 @@ class MainScene extends Phaser.Scene {
       }
       enemy.lastEdgeHitTime = currentTime;
     }
+  }
+
+  generateShareText(isWin, level, deathCause) {
+    const levelDisplay = level + 1; // Convert 0-indexed to 1-indexed
+    const url = "https://thisdungeoneternal.com";
+
+    if (isWin) {
+      return `I escaped This Dungeon Eternal.\n\n${url}`;
+    } else {
+      // Format enemy type for display
+      let formattedCause = deathCause.toLowerCase();
+      formattedCause = formattedCause.replace("armoredorc", "armored orc");
+
+      // Determine article (a/an) based on first letter
+      const article =
+        formattedCause[0] === "a" ||
+        formattedCause[0] === "e" ||
+        formattedCause[0] === "i" ||
+        formattedCause[0] === "o" ||
+        formattedCause[0] === "u"
+          ? "an"
+          : "a";
+
+      return `I reached level ${levelDisplay} in This Dungeon Eternal before getting killed by ${article} ${formattedCause}.\n\n${url}`;
+    }
+  }
+
+  openBlueskyShare(text) {
+    const encodedText = encodeURIComponent(text);
+    const shareUrl = `https://bsky.app/intent/compose?text=${encodedText}`;
+    window.open(shareUrl, "_blank");
   }
 
   winGame() {
@@ -1822,6 +1864,10 @@ class MainScene extends Phaser.Scene {
       if (this.playAgainButton) {
         this.playAgainButton.setVisible(false);
       }
+      if (this.shareButton) {
+        this.shareButton.destroy();
+        this.shareButton = null;
+      }
 
       // Remove the space key listener if it exists
       if (this.spaceKeyListener) {
@@ -1872,6 +1918,32 @@ class MainScene extends Phaser.Scene {
     };
 
     this.playAgainButton.on("pointerdown", restartGame);
+
+    // Create Share on Bluesky button
+    this.shareButton = this.add
+      .text(400, 420, "Share on Bluesky", {
+        fontSize: "32px",
+        fill: "#ffffff",
+        backgroundColor: "#4a90e2",
+        padding: {
+          left: 20,
+          right: 20,
+          top: 10,
+          bottom: 10,
+        },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    // Share button click handler
+    this.shareButton.on("pointerdown", () => {
+      const shareMsg = this.generateShareText(
+        true,
+        this.currentLevelIndex,
+        null,
+      );
+      this.openBlueskyShare(shareMsg);
+    });
 
     // Add keyboard listener for space key to restart the game
     this.spaceKeyListener = this.input.keyboard.addKey(
@@ -5312,6 +5384,7 @@ class MainScene extends Phaser.Scene {
         // Check for game over
         if (player.health <= 0) {
           player.alpha = 1;
+          this.lastDeathCause = enemy.type;
           this.gameOver();
         }
       }
@@ -5538,6 +5611,33 @@ class MainScene extends Phaser.Scene {
         };
 
         this.playAgainButton.on("pointerdown", restartGame);
+
+        // Create Share on Bluesky button
+        this.shareButton = this.add
+          .text(400, 420, "Share on Bluesky", {
+            fontSize: "32px",
+            fill: "#ffffff",
+            backgroundColor: "#4a90e2",
+            padding: {
+              left: 20,
+              right: 20,
+              top: 10,
+              bottom: 10,
+            },
+          })
+          .setOrigin(0.5)
+          .setInteractive({ useHandCursor: true });
+        this.shareButton.setDepth(210);
+
+        // Share button click handler
+        this.shareButton.on("pointerdown", () => {
+          const shareMsg = this.generateShareText(
+            false,
+            this.currentLevelIndex,
+            this.lastDeathCause,
+          );
+          this.openBlueskyShare(shareMsg);
+        });
 
         // Add keyboard listener for space key to restart the game
         this.spaceKeyListener = this.input.keyboard.addKey(
