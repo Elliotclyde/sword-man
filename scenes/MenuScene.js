@@ -8,6 +8,7 @@ const MENU_SCREENS = {
   },
   credits: {
     text: "created by Hugh Haworth",
+    textUrl: "https://www.elliotclyde.nz",
     music: "music by Hugh Haworth",
     voiceActing: "voice-acting by Hugh Haworth",
     sprites: [
@@ -84,8 +85,8 @@ class MenuScene extends Phaser.Scene {
   }
 
   handleCreditsNavigation(key) {
-    // Calculate total items: sprites + 1 back button
-    const totalItems = MENU_SCREENS.credits.sprites.length + 1;
+    // Calculate total items: 1 created by + sprites + 1 back button
+    const totalItems = MENU_SCREENS.credits.sprites.length + 2;
 
     if (key === "ArrowUp") {
       this.currentCreditsIndex =
@@ -111,16 +112,20 @@ class MenuScene extends Phaser.Scene {
       }
     } else if (this.currentScreen === "credits") {
       // Check if back button is selected
-      const totalItems = MENU_SCREENS.credits.sprites.length + 1;
+      const totalItems = MENU_SCREENS.credits.sprites.length + 2;
       if (this.currentCreditsIndex === totalItems - 1) {
         // Back button is selected
         this.currentScreen = "menu";
         this.currentMenuIndex = 0;
         this.clearAllElements();
         this.displayMenu();
+      } else if (this.currentCreditsIndex === 0) {
+        // Open the created by link
+        window.open(MENU_SCREENS.credits.textUrl, "_blank");
       } else {
         // Open the sprite link
-        const sprite = MENU_SCREENS.credits.sprites[this.currentCreditsIndex];
+        const sprite =
+          MENU_SCREENS.credits.sprites[this.currentCreditsIndex - 1];
         window.open(sprite.url, "_blank");
       }
     }
@@ -198,7 +203,10 @@ class MenuScene extends Phaser.Scene {
     const centerX = 400;
     const centerY = 150;
 
-    // Display main credits text
+    // Display main credits text as interactive element
+    const isCreatedBySelected = this.currentCreditsIndex === 0;
+    const createdByAlpha = isCreatedBySelected ? 1.0 : 0.5;
+
     this.creditsText = this.add.text(
       centerX,
       centerY,
@@ -209,6 +217,20 @@ class MenuScene extends Phaser.Scene {
       },
     );
     this.creditsText.setOrigin(0.5);
+    this.creditsText.setAlpha(createdByAlpha);
+    this.creditsText.setInteractive();
+    this.creditsText.on("pointerdown", () => {
+      window.open(MENU_SCREENS.credits.textUrl, "_blank");
+    });
+    this.creditsText.on("pointerover", () => {
+      this.creditsText.setAlpha(1.0);
+      this.game.canvas.style.cursor = "pointer";
+    });
+    this.creditsText.on("pointerout", () => {
+      const isCurrentSelected = this.currentCreditsIndex === 0;
+      this.creditsText.setAlpha(isCurrentSelected ? 1.0 : 0.5);
+      this.game.canvas.style.cursor = "default";
+    });
 
     // Display music credits
     this.musicText = this.add.text(
@@ -247,7 +269,7 @@ class MenuScene extends Phaser.Scene {
     let yOffset = centerY + 190;
 
     sprites.forEach((sprite, index) => {
-      const isSelected = index === this.currentCreditsIndex;
+      const isSelected = index + 1 === this.currentCreditsIndex;
       const alpha = isSelected ? 1.0 : 0.5;
 
       const spriteText = this.add.text(centerX, yOffset, sprite.title, {
@@ -266,7 +288,7 @@ class MenuScene extends Phaser.Scene {
         this.game.canvas.style.cursor = "pointer";
       });
       spriteText.on("pointerout", () => {
-        const isCurrentSelected = this.currentCreditsIndex === index;
+        const isCurrentSelected = this.currentCreditsIndex === index + 1;
         spriteText.setAlpha(isCurrentSelected ? 1.0 : 0.5);
         this.game.canvas.style.cursor = "default";
       });
@@ -275,7 +297,7 @@ class MenuScene extends Phaser.Scene {
     });
 
     // Display back button
-    const isBackSelected = this.currentCreditsIndex === sprites.length;
+    const isBackSelected = this.currentCreditsIndex === sprites.length + 1;
     const backAlpha = isBackSelected ? 1.0 : 0.5;
 
     this.backButton = this.add.text(centerX, yOffset + 20, "Back", {
@@ -296,7 +318,7 @@ class MenuScene extends Phaser.Scene {
       this.game.canvas.style.cursor = "pointer";
     });
     this.backButton.on("pointerout", () => {
-      const isSelected = this.currentCreditsIndex === sprites.length;
+      const isSelected = this.currentCreditsIndex === sprites.length + 1;
       this.backButton.setAlpha(isSelected ? 1.0 : 0.5);
       this.game.canvas.style.cursor = "default";
     });
