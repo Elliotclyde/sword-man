@@ -195,6 +195,21 @@ class MenuScene extends Phaser.Scene {
       text.setOrigin(0.5);
       text.setAlpha(alpha);
 
+      // Make menu items interactive
+      text.setInteractive({ useHandCursor: true });
+
+      // Handle pointer over
+      text.on("pointerover", () => {
+        this.currentMenuIndex = index;
+        this.displayMenu();
+      });
+
+      // Handle pointer click/tap
+      text.on("pointerdown", () => {
+        this.currentMenuIndex = index;
+        this.handleMenuSelect();
+      });
+
       this.menuItemsTexts.push(text);
     });
   }

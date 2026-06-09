@@ -17,17 +17,76 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 100vh;
+        min-height: 100vh;
+      }
+
+      #game-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        max-width: 800px;
       }
 
       #game {
         display: flex;
         justify-content: center;
         align-items: center;
+        width: 100%;
+      }
+
+      #mobile-controls {
+        display: none;
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 10px;
+        gap: 10px;
+        min-height: 120px;
+      }
+
+      #buttons-container {
+        flex: 1;
+        max-width: 20%;
+        aspect-ratio: 1;
+        position: relative;
+        background-color: rgba(100, 100, 100, 0.3);
+        min-width: 80px;
+        min-height: 80px;
+      }
+
+      #joystick-container {
+        flex: 1;
+        max-width: 20%;
+        aspect-ratio: 1;
+        position: relative;
+        background-color: rgba(100, 100, 100, 0.3);
+        min-width: 80px;
+        min-height: 80px;
+      }
+
+      /* Mobile breakpoint */
+      @media (max-width: 768px) {
+        #mobile-controls {
+          display: flex;
+        }
+
+        #game-container {
+          max-width: 100%;
+        }
       }
     </style>
   </head>
   <body>
+    <div id="game-container">
+      <div id="game"></div>
+      <div id="mobile-controls">
+        <div id="buttons-container"></div>
+        <div id="joystick-container"></div>
+      </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
     <script type="module" src="game.js"></script>
   </body>
