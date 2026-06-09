@@ -412,6 +412,9 @@ class MainScene extends Phaser.Scene {
 
     // Load audio sprite for game sound effects
     this.load.audioSprite("sfx", "assets/sounds.json", ["assets/sounds.mp3"]);
+
+    // Load Bluesky logo
+    this.load.image("blueskylogo", "assets/blueskylogo.svg");
   }
 
   // Initialize the low pass filter and cathedral reverb for background music
@@ -929,6 +932,8 @@ class MainScene extends Phaser.Scene {
     if (this.shareButton) {
       this.shareButton.destroy();
       this.shareButton = null;
+      this.blueskyLogo.destroy();
+      this.blueskyLogo = null;
     }
 
     // Remove space key listener if it exists
@@ -1778,7 +1783,7 @@ class MainScene extends Phaser.Scene {
           ? "an"
           : "a";
 
-      return `I reached level ${levelDisplay} in This Dungeon Eternal before getting killed by ${article} ${formattedCause}.\n\n${url}`;
+      return `I reached level ${levelDisplay} in This Dungeon Eternal before I was sadly killed by ${article} ${formattedCause}.\n\n${url}`;
     }
   }
 
@@ -1793,6 +1798,9 @@ class MainScene extends Phaser.Scene {
       return;
     }
     this.gameIsOver = true;
+
+    // Re-enable input for UI interactions
+    this.input.enabled = true;
 
     // Stop background music
     if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
@@ -1837,7 +1845,7 @@ class MainScene extends Phaser.Scene {
       strokeThickness: 6,
     });
     this.resultText.setOrigin(0.5);
-    this.resultText.setDepth(10);
+    this.resultText.setDepth(210);
 
     // Create Play Again button
     this.playAgainButton = this.add
@@ -1854,6 +1862,7 @@ class MainScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
+    this.playAgainButton.setDepth(210);
 
     // Function to restart the game
     const restartGame = () => {
@@ -1867,6 +1876,10 @@ class MainScene extends Phaser.Scene {
       if (this.shareButton) {
         this.shareButton.destroy();
         this.shareButton = null;
+      }
+      if (this.blueskyLogo) {
+        this.blueskyLogo.destroy();
+        this.blueskyLogo = null;
       }
 
       // Remove the space key listener if it exists
@@ -1920,22 +1933,31 @@ class MainScene extends Phaser.Scene {
     this.playAgainButton.on("pointerdown", restartGame);
 
     // Create Share on Bluesky button
+    this.blueskyLogo = this.add
+      .image(400, 440, "blueskylogo")
+      .setScale(0.1)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    this.blueskyLogo.setDepth(209);
+
     this.shareButton = this.add
-      .text(400, 420, "Share on Bluesky", {
-        fontSize: "32px",
+      .text(400, 400, "Share on Bluesky", {
+        fontSize: "16px",
         fill: "#ffffff",
-        backgroundColor: "#4a90e2",
-        padding: {
-          left: 20,
-          right: 20,
-          top: 10,
-          bottom: 10,
-        },
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
+    this.shareButton.setDepth(210);
 
     // Share button click handler
+    this.blueskyLogo.on("pointerdown", () => {
+      const shareMsg = this.generateShareText(
+        true,
+        this.currentLevelIndex,
+        null,
+      );
+      this.openBlueskyShare(shareMsg);
+    });
     this.shareButton.on("pointerdown", () => {
       const shareMsg = this.generateShareText(
         true,
@@ -5613,22 +5635,31 @@ class MainScene extends Phaser.Scene {
         this.playAgainButton.on("pointerdown", restartGame);
 
         // Create Share on Bluesky button
+        this.blueskyLogo = this.add
+          .image(400, 440, "blueskylogo")
+          .setScale(0.1)
+          .setOrigin(0.5)
+          .setInteractive({ useHandCursor: true });
+        this.blueskyLogo.setDepth(209);
+
         this.shareButton = this.add
-          .text(400, 420, "Share on Bluesky", {
-            fontSize: "32px",
+          .text(400, 400, "Share on Bluesky", {
+            fontSize: "16px",
             fill: "#ffffff",
-            backgroundColor: "#4a90e2",
-            padding: {
-              left: 20,
-              right: 20,
-              top: 10,
-              bottom: 10,
-            },
           })
           .setOrigin(0.5)
           .setInteractive({ useHandCursor: true });
         this.shareButton.setDepth(210);
 
+        // Share button click handler
+        this.blueskyLogo.on("pointerdown", () => {
+          const shareMsg = this.generateShareText(
+            false,
+            this.currentLevelIndex,
+            this.lastDeathCause,
+          );
+          this.openBlueskyShare(shareMsg);
+        });
         // Share button click handler
         this.shareButton.on("pointerdown", () => {
           const shareMsg = this.generateShareText(
