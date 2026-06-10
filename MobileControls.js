@@ -6,8 +6,18 @@ class MobileControls {
     this.buttonB = false;
     this.buttonAPreviousState = false;
     this.buttonBPreviousState = false;
-    this.buttonATouchActive = false;
-    this.buttonBTouchActive = false;
+
+    // Active touches tracking
+    this.activeTouches = new Map(); // { touchId: { x, y } }
+    this.touchesOnButtonA = new Set();
+    this.touchesOnButtonB = new Set();
+    this.activeJoystickTouchId = null;
+
+    // Button style constants
+    this.buttonANormalColor = "rgba(255, 100, 100, 0.7)";
+    this.buttonAActiveColor = "rgba(255, 150, 150, 0.9)";
+    this.buttonBNormalColor = "rgba(100, 150, 255, 0.7)";
+    this.buttonBActiveColor = "rgba(150, 180, 255, 0.9)";
 
     if (this.isMobile) {
       this.initializeUI();
@@ -30,7 +40,7 @@ class MobileControls {
     this.buttonAElement.style.cssText = `
             width: 80%;
             aspect-ratio: 1;
-            background-color: rgba(255, 100, 100, 0.7);
+            background-color: ${this.buttonANormalColor};
             border-radius: 50%;
             display: flex;
             justify-content: center;
@@ -39,6 +49,7 @@ class MobileControls {
             font-weight: bold;
             color: white;
             touch-action: none;
+            transition: background-color 0.05s ease-out;
         `;
     this.buttonAElement.textContent = "A";
     buttonsContainer.appendChild(this.buttonAElement);
@@ -47,7 +58,7 @@ class MobileControls {
     this.buttonBElement.style.cssText = `
             width: 80%;
             aspect-ratio: 1;
-            background-color: rgba(100, 150, 255, 0.7);
+            background-color: ${this.buttonBNormalColor};
             border-radius: 50%;
             display: flex;
             justify-content: center;
@@ -56,6 +67,7 @@ class MobileControls {
             font-weight: bold;
             color: white;
             touch-action: none;
+            transition: background-color 0.05s ease-out;
         `;
     this.buttonBElement.textContent = "B";
     buttonsContainer.appendChild(this.buttonBElement);
@@ -104,79 +116,173 @@ class MobileControls {
       return;
     }
 
-    // Button touch listeners
-    buttonsContainer.addEventListener("touchstart", (e) =>
-      this.handleButtonTouchStart(e),
-    );
-    buttonsContainer.addEventListener("touchend", (e) =>
-      this.handleButtonTouchEnd(e),
-    );
+    // Use global touch listeners for more accurate tracking
+    document.addEventListener("touchstart", (e) => this.handleTouchStart(e), {
+      passive: false,
+    });
+    document.addEventListener("touchmove", (e) => this.handleTouchMove(e), {
+      passive: false,
+    });
+    document.addEventListener("touchend", (e) => this.handleTouchEnd(e), {
+      passive: false,
+    });
+  }
 
-    // Joystick touch listeners
-    joystickContainer.addEventListener("touchstart", (e) =>
-      this.handleJoystickTouchStart(e),
-    );
-    joystickContainer.addEventListener("touchmove", (e) =>
-      this.handleJoystickTouchMove(e),
-    );
-    joystickContainer.addEventListener("touchend", (e) =>
-      this.handleJoystickTouchEnd(e),
+  /**
+   * Check if a touch point is within the bounds of an element
+   */
+  isTouchOnElement(touchX, touchY, element) {
+    const rect = element.getBoundingClientRect();
+    return (
+      touchX >= rect.left &&
+      touchX <= rect.right &&
+      touchY >= rect.top &&
+      touchY <= rect.bottom
     );
   }
 
-  handleButtonTouchStart(e) {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const rect = e.currentTarget.getBoundingClientRect();
-    const relativeY = touch.clientY - rect.top;
+  /**
+   * Update which touches are on each button
+   */
+  updateTouchesOnButtons() {
+    const buttonsContainer = document.getElementById("buttons-container");
+    const buttonAElement = this.buttonAElement;
+    const buttonBElement = this.buttonBElement;
 
-    // Determine if A or B button was pressed
-    if (relativeY < rect.height / 2) {
-      this.buttonATouchActive = true;
-    } else {
-      this.buttonBTouchActive = true;
+    if (!buttonsContainer || !buttonAElement || !buttonBElement) {
+      return;
+    }
+
+    this.touchesOnButtonA.clear();
+    this.touchesOnButtonB.clear();
+
+    this.activeTouches.forEach((touch, touchId) => {
+      if (this.isTouchOnElement(touch.x, touch.y, buttonAElement)) {
+        this.touchesOnButtonA.add(touchId);
+      }
+      if (this.isTouchOnElement(touch.x, touch.y, buttonBElement)) {
+        this.touchesOnButtonB.add(touchId);
+      }
+    });
+
+    this.updateButtonVisualState();
+  }
+
+  /**
+   * Update visual state of buttons based on touch status
+   */
+  updateButtonVisualState() {
+    if (this.buttonAElement) {
+      this.buttonAElement.style.backgroundColor =
+        this.touchesOnButtonA.size > 0
+          ? this.buttonAActiveColor
+          : this.buttonANormalColor;
+    }
+    if (this.buttonBElement) {
+      this.buttonBElement.style.backgroundColor =
+        this.touchesOnButtonB.size > 0
+          ? this.buttonBActiveColor
+          : this.buttonBNormalColor;
     }
   }
 
-  handleButtonTouchEnd(e) {
-    e.preventDefault();
-    this.buttonATouchActive = false;
-    this.buttonBTouchActive = false;
-  }
+  /**
+   * Handle all touch starts
+   */
+  handleTouchStart(e) {
+    const buttonsContainer = document.getElementById("buttons-container");
+    const joystickContainer = document.getElementById("joystick-container");
 
-  handleJoystickTouchStart(e) {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const rect = e.currentTarget.getBoundingClientRect();
-    this.joystickTouchId = touch.identifier;
-    this.updateJoystickPosition(
-      touch.clientX - rect.left,
-      touch.clientY - rect.top,
-      rect,
-    );
-  }
-
-  handleJoystickTouchMove(e) {
-    e.preventDefault();
+    // Record all new touches
     for (let i = 0; i < e.touches.length; i++) {
-      if (e.touches[i].identifier === this.joystickTouchId) {
-        const touch = e.touches[i];
-        const rect = e.currentTarget.getBoundingClientRect();
-        this.updateJoystickPosition(
-          touch.clientX - rect.left,
-          touch.clientY - rect.top,
-          rect,
-        );
-        break;
+      const touch = e.touches[i];
+      if (!this.activeTouches.has(touch.identifier)) {
+        this.activeTouches.set(touch.identifier, {
+          x: touch.clientX,
+          y: touch.clientY,
+        });
       }
     }
+
+    // Try to assign joystick if not already assigned
+    if (!this.activeJoystickTouchId && joystickContainer) {
+      for (let i = 0; i < e.touches.length; i++) {
+        const touch = e.touches[i];
+        if (
+          this.isTouchOnElement(touch.clientX, touch.clientY, joystickContainer)
+        ) {
+          this.activeJoystickTouchId = touch.identifier;
+          const rect = joystickContainer.getBoundingClientRect();
+          this.updateJoystickPosition(
+            touch.clientX - rect.left,
+            touch.clientY - rect.top,
+            rect,
+          );
+          break;
+        }
+      }
+    }
+
+    // Update button touches
+    this.updateTouchesOnButtons();
   }
 
-  handleJoystickTouchEnd(e) {
-    e.preventDefault();
-    this.joystickInput = { x: 0, y: 0 };
-    this.joystickTouchId = null;
-    this.drawJoystick();
+  /**
+   * Handle all touch moves
+   */
+  handleTouchMove(e) {
+    const joystickContainer = document.getElementById("joystick-container");
+
+    // Update positions of all active touches
+    for (let i = 0; i < e.touches.length; i++) {
+      const touch = e.touches[i];
+      if (this.activeTouches.has(touch.identifier)) {
+        this.activeTouches.set(touch.identifier, {
+          x: touch.clientX,
+          y: touch.clientY,
+        });
+      }
+    }
+
+    // Update joystick position if this is the active joystick touch
+    if (this.activeJoystickTouchId && joystickContainer) {
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === this.activeJoystickTouchId) {
+          const touch = e.touches[i];
+          const rect = joystickContainer.getBoundingClientRect();
+          this.updateJoystickPosition(
+            touch.clientX - rect.left,
+            touch.clientY - rect.top,
+            rect,
+          );
+          break;
+        }
+      }
+    }
+
+    // Re-check which touches are on buttons (they may have moved)
+    this.updateTouchesOnButtons();
+  }
+
+  /**
+   * Handle all touch ends
+   */
+  handleTouchEnd(e) {
+    // Remove ended touches
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      this.activeTouches.delete(touch.identifier);
+
+      // Clear joystick if this was the active touch
+      if (touch.identifier === this.activeJoystickTouchId) {
+        this.activeJoystickTouchId = null;
+        this.joystickInput = { x: 0, y: 0 };
+        this.drawJoystick();
+      }
+    }
+
+    // Update button touches
+    this.updateTouchesOnButtons();
   }
 
   updateJoystickPosition(touchX, touchY, containerRect) {
@@ -321,9 +427,9 @@ class MobileControls {
     this.buttonAPreviousState = this.buttonA;
     this.buttonBPreviousState = this.buttonB;
 
-    // THEN sync the touch-active flags to the button states (for this frame)
-    this.buttonA = this.buttonATouchActive;
-    this.buttonB = this.buttonBTouchActive;
+    // THEN update button states based on whether any touches are on them
+    this.buttonA = this.touchesOnButtonA.size > 0;
+    this.buttonB = this.touchesOnButtonB.size > 0;
   }
 }
 
