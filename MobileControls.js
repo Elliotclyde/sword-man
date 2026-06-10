@@ -6,6 +6,8 @@ class MobileControls {
     this.buttonB = false;
     this.buttonAPreviousState = false;
     this.buttonBPreviousState = false;
+    this.buttonATouchActive = false;
+    this.buttonBTouchActive = false;
 
     if (this.isMobile) {
       this.initializeUI();
@@ -130,16 +132,16 @@ class MobileControls {
 
     // Determine if A or B button was pressed
     if (relativeY < rect.height / 2) {
-      this.buttonA = true;
+      this.buttonATouchActive = true;
     } else {
-      this.buttonB = true;
+      this.buttonBTouchActive = true;
     }
   }
 
   handleButtonTouchEnd(e) {
     e.preventDefault();
-    this.buttonA = false;
-    this.buttonB = false;
+    this.buttonATouchActive = false;
+    this.buttonBTouchActive = false;
   }
 
   handleJoystickTouchStart(e) {
@@ -304,12 +306,10 @@ class MobileControls {
   isButtonJustPressed(button) {
     if (button === "buttonA") {
       const justPressed = this.buttonA && !this.buttonAPreviousState;
-      this.buttonAPreviousState = this.buttonA;
       return justPressed;
     }
     if (button === "buttonB") {
       const justPressed = this.buttonB && !this.buttonBPreviousState;
-      this.buttonBPreviousState = this.buttonB;
       return justPressed;
     }
     return false;
@@ -317,8 +317,13 @@ class MobileControls {
 
   updateButtonStates() {
     // This should be called once per frame to update previous states
+    // IMPORTANT: Update previous states FIRST (from last frame's button states)
     this.buttonAPreviousState = this.buttonA;
     this.buttonBPreviousState = this.buttonB;
+
+    // THEN sync the touch-active flags to the button states (for this frame)
+    this.buttonA = this.buttonATouchActive;
+    this.buttonB = this.buttonBTouchActive;
   }
 }
 
