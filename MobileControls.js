@@ -45,7 +45,7 @@ class MobileControls {
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 48px;
+            font-size: 10vw;
             font-weight: bold;
             color: white;
             touch-action: none;
@@ -63,7 +63,7 @@ class MobileControls {
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 48px;
+            font-size: 10vw;
             font-weight: bold;
             color: white;
             touch-action: none;
