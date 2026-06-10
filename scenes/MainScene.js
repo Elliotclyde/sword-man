@@ -1960,7 +1960,23 @@ class MainScene extends Phaser.Scene {
       );
       this.openBlueskyShare(shareMsg);
     });
+    this.blueskyLogo.on("pointerup", () => {
+      const shareMsg = this.generateShareText(
+        true,
+        this.currentLevelIndex,
+        null,
+      );
+      this.openBlueskyShare(shareMsg);
+    });
     this.shareButton.on("pointerdown", () => {
+      const shareMsg = this.generateShareText(
+        true,
+        this.currentLevelIndex,
+        null,
+      );
+      this.openBlueskyShare(shareMsg);
+    });
+    this.shareButton.on("pointerup", () => {
       const shareMsg = this.generateShareText(
         true,
         this.currentLevelIndex,
@@ -5710,8 +5726,24 @@ class MainScene extends Phaser.Scene {
           );
           this.openBlueskyShare(shareMsg);
         });
+        this.blueskyLogo.on("pointerup", () => {
+          const shareMsg = this.generateShareText(
+            false,
+            this.currentLevelIndex,
+            this.lastDeathCause,
+          );
+          this.openBlueskyShare(shareMsg);
+        });
         // Share button click handler
         this.shareButton.on("pointerdown", () => {
+          const shareMsg = this.generateShareText(
+            false,
+            this.currentLevelIndex,
+            this.lastDeathCause,
+          );
+          this.openBlueskyShare(shareMsg);
+        });
+        this.shareButton.on("pointerup", () => {
           const shareMsg = this.generateShareText(
             false,
             this.currentLevelIndex,
