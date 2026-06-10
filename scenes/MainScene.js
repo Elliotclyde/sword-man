@@ -1,3 +1,5 @@
+import MobileControls from "../MobileControls.js";
+
 const entityTypes = {
   PLAYER: "PLAYER",
   ENEMY: "ENEMY",
@@ -1958,7 +1960,23 @@ class MainScene extends Phaser.Scene {
       );
       this.openBlueskyShare(shareMsg);
     });
+    this.blueskyLogo.on("pointerup", () => {
+      const shareMsg = this.generateShareText(
+        true,
+        this.currentLevelIndex,
+        null,
+      );
+      this.openBlueskyShare(shareMsg);
+    });
     this.shareButton.on("pointerdown", () => {
+      const shareMsg = this.generateShareText(
+        true,
+        this.currentLevelIndex,
+        null,
+      );
+      this.openBlueskyShare(shareMsg);
+    });
+    this.shareButton.on("pointerup", () => {
       const shareMsg = this.generateShareText(
         true,
         this.currentLevelIndex,
@@ -2453,6 +2471,9 @@ class MainScene extends Phaser.Scene {
     );
     this.xKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.isGameStarted = true; // Track if game has started, set to false after level completion
+
+    // Initialize mobile controls
+    this.mobileControls = new MobileControls();
 
     // Initialize the game state using our idempotent method
     this.initializeLevel();
@@ -4397,6 +4418,11 @@ class MainScene extends Phaser.Scene {
     // Update the low pass filter on the background music
     this.updateAudioFilter(this.game.loop.delta);
 
+    // Update mobile control button states for "just pressed" detection
+    if (this.mobileControls?.isMobile) {
+      this.mobileControls.updateButtonStates();
+    }
+
     // Update game logic here
     let isMoving = false;
     let movingRight = false;
@@ -4429,6 +4455,22 @@ class MainScene extends Phaser.Scene {
       isMoving = true;
       movingRight = true;
       this.lastHorizontalDirection = "right";
+    } else if (this.mobileControls?.isMobile) {
+      // Handle mobile joystick input
+      const joystick = this.mobileControls.getJoystickInput();
+      if (joystick.x < 0) {
+        this.player.body.setVelocityX(-160 * dashSpeedMultiplier);
+        isMoving = true;
+        movingLeft = true;
+        this.lastHorizontalDirection = "left";
+      } else if (joystick.x > 0) {
+        this.player.body.setVelocityX(160 * dashSpeedMultiplier);
+        isMoving = true;
+        movingRight = true;
+        this.lastHorizontalDirection = "right";
+      } else {
+        this.player.body.setVelocityX(0);
+      }
     } else {
       this.player.body.setVelocityX(0);
     }
@@ -4441,12 +4483,31 @@ class MainScene extends Phaser.Scene {
       this.player.body.setVelocityY(160 * dashSpeedMultiplier);
       isMoving = true;
       movingVertical = true;
+    } else if (this.mobileControls?.isMobile) {
+      // Handle mobile joystick input
+      const joystick = this.mobileControls.getJoystickInput();
+      if (joystick.y < 0) {
+        this.player.body.setVelocityY(-160 * dashSpeedMultiplier);
+        isMoving = true;
+        movingVertical = true;
+      } else if (joystick.y > 0) {
+        this.player.body.setVelocityY(160 * dashSpeedMultiplier);
+        isMoving = true;
+        movingVertical = true;
+      } else {
+        this.player.body.setVelocityY(0);
+      }
     } else {
       this.player.body.setVelocityY(0);
     }
 
     // Handle X key for dash
-    if (Phaser.Input.Keyboard.JustDown(this.xKey)) {
+    const shouldDash =
+      Phaser.Input.Keyboard.JustDown(this.xKey) ||
+      (this.mobileControls?.isMobile &&
+        this.mobileControls.isButtonJustPressed("buttonB"));
+
+    if (shouldDash) {
       // Check if enough time has passed since last dash (0.5 second cooldown)
       if (
         this.time.now - this.lastDashTime >= 500 &&
@@ -4460,8 +4521,13 @@ class MainScene extends Phaser.Scene {
     }
 
     // Handle space bar for sword swing
+    const shouldAttack =
+      Phaser.Input.Keyboard.JustDown(this.spaceBar) ||
+      (this.mobileControls?.isMobile &&
+        this.mobileControls.isButtonJustPressed("buttonA"));
+
     if (
-      Phaser.Input.Keyboard.JustDown(this.spaceBar) &&
+      shouldAttack &&
       this.time.now - this.lastAttackTime >= 700 &&
       this.isGameStarted &&
       this.playerAbilities.attack
@@ -5660,8 +5726,24 @@ class MainScene extends Phaser.Scene {
           );
           this.openBlueskyShare(shareMsg);
         });
+        this.blueskyLogo.on("pointerup", () => {
+          const shareMsg = this.generateShareText(
+            false,
+            this.currentLevelIndex,
+            this.lastDeathCause,
+          );
+          this.openBlueskyShare(shareMsg);
+        });
         // Share button click handler
         this.shareButton.on("pointerdown", () => {
+          const shareMsg = this.generateShareText(
+            false,
+            this.currentLevelIndex,
+            this.lastDeathCause,
+          );
+          this.openBlueskyShare(shareMsg);
+        });
+        this.shareButton.on("pointerup", () => {
           const shareMsg = this.generateShareText(
             false,
             this.currentLevelIndex,

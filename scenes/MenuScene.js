@@ -195,6 +195,21 @@ class MenuScene extends Phaser.Scene {
       text.setOrigin(0.5);
       text.setAlpha(alpha);
 
+      // Make menu items interactive
+      text.setInteractive({ useHandCursor: true });
+
+      // Handle pointer over
+      text.on("pointerover", () => {
+        this.currentMenuIndex = index;
+        this.displayMenu();
+      });
+
+      // Handle pointer click/tap
+      text.on("pointerdown", () => {
+        this.currentMenuIndex = index;
+        this.handleMenuSelect();
+      });
+
       this.menuItemsTexts.push(text);
     });
   }
@@ -218,8 +233,11 @@ class MenuScene extends Phaser.Scene {
     );
     this.creditsText.setOrigin(0.5);
     this.creditsText.setAlpha(createdByAlpha);
-    this.creditsText.setInteractive();
+    this.creditsText.setInteractive({ useHandCursor: true });
     this.creditsText.on("pointerdown", () => {
+      window.open(MENU_SCREENS.credits.textUrl, "_blank");
+    });
+    this.creditsText.on("pointerup", () => {
       window.open(MENU_SCREENS.credits.textUrl, "_blank");
     });
     this.creditsText.on("pointerover", () => {
@@ -279,8 +297,11 @@ class MenuScene extends Phaser.Scene {
       });
       spriteText.setOrigin(0.5);
       spriteText.setAlpha(alpha);
-      spriteText.setInteractive();
+      spriteText.setInteractive({ useHandCursor: true });
       spriteText.on("pointerdown", () => {
+        window.open(sprite.url, "_blank");
+      });
+      spriteText.on("pointerup", () => {
         window.open(sprite.url, "_blank");
       });
       spriteText.on("pointerover", () => {
@@ -307,8 +328,13 @@ class MenuScene extends Phaser.Scene {
     });
     this.backButton.setOrigin(0.5);
     this.backButton.setAlpha(backAlpha);
-    this.backButton.setInteractive();
+    this.backButton.setInteractive({ useHandCursor: true });
     this.backButton.on("pointerdown", () => {
+      this.currentScreen = "menu";
+      this.currentMenuIndex = 0;
+      this.displayMenu();
+    });
+    this.backButton.on("pointerup", () => {
       this.currentScreen = "menu";
       this.currentMenuIndex = 0;
       this.displayMenu();
