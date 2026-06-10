@@ -26,7 +26,6 @@ class MobileControls {
     // Create buttons container for A and B
     this.buttonAElement = document.createElement("div");
     this.buttonAElement.style.cssText = `
-            position: absolute;
             width: 60%;
             aspect-ratio: 1;
             background-color: rgba(255, 100, 100, 0.7);
@@ -37,8 +36,6 @@ class MobileControls {
             font-size: 24px;
             font-weight: bold;
             color: white;
-            top: 0;
-            left: 20%;
             touch-action: none;
         `;
     this.buttonAElement.textContent = "A";
@@ -46,7 +43,6 @@ class MobileControls {
 
     this.buttonBElement = document.createElement("div");
     this.buttonBElement.style.cssText = `
-            position: absolute;
             width: 60%;
             aspect-ratio: 1;
             background-color: rgba(100, 150, 255, 0.7);
@@ -57,8 +53,6 @@ class MobileControls {
             font-size: 24px;
             font-weight: bold;
             color: white;
-            bottom: 0;
-            left: 20%;
             touch-action: none;
         `;
     this.buttonBElement.textContent = "B";

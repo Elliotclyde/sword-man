@@ -40,7 +40,7 @@
         display: none;
         width: 100%;
         flex-direction: row;
-        justify-content: space-between;
+        justify-content: space-evenly;
         align-items: flex-end;
         padding: 10px;
         gap: 10px;
@@ -51,10 +51,10 @@
         flex: 1;
         max-width: 20%;
         aspect-ratio: 1;
-        position: relative;
-        background-color: rgba(100, 100, 100, 0.3);
-        min-width: 80px;
-        min-height: 80px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
       }
 
       #joystick-container {
@@ -62,9 +62,6 @@
         max-width: 20%;
         aspect-ratio: 1;
         position: relative;
-        background-color: rgba(100, 100, 100, 0.3);
-        min-width: 80px;
-        min-height: 80px;
       }
 
       /* Mobile breakpoint */

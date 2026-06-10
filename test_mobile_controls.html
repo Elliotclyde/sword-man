@@ -1,152 +1,153 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
+  <head>
     <title>Test Mobile Controls</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            background-color: #222;
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        
-        #game-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            max-width: 800px;
-        }
-        
-        #game {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            background-color: #111;
-            min-height: 300px;
-        }
-        
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: #222;
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+
+      #game-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        max-width: 800px;
+      }
+
+      #game {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        background-color: #111;
+        min-height: 300px;
+      }
+
+      #mobile-controls {
+        display: none;
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 10px;
+        gap: 10px;
+      }
+
+      #buttons-container {
+        flex: 1;
+        max-width: 20%;
+        aspect-ratio: 1;
+        position: relative;
+        background-color: rgba(100, 100, 100, 0.3);
+        min-width: 80px;
+        min-height: 80px;
+      }
+
+      #joystick-container {
+        flex: 1;
+        max-width: 20%;
+        aspect-ratio: 1;
+        position: relative;
+        background-color: rgba(100, 100, 100, 0.3);
+        min-width: 80px;
+        min-height: 80px;
+      }
+
+      @media (max-width: 768px) {
         #mobile-controls {
-            display: none;
-            width: 100%;
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: flex-end;
-            padding: 10px;
-            gap: 10px;
+          display: flex;
         }
-        
-        #buttons-container {
-            flex: 1;
-            max-width: 20%;
-            aspect-ratio: 1;
-            position: relative;
-            background-color: rgba(100, 100, 100, 0.3);
-            min-width: 80px;
-            min-height: 80px;
+
+        #game-container {
+          max-width: 100%;
         }
-        
-        #joystick-container {
-            flex: 1;
-            max-width: 20%;
-            aspect-ratio: 1;
-            position: relative;
-            background-color: rgba(100, 100, 100, 0.3);
-            min-width: 80px;
-            min-height: 80px;
-        }
-        
-        @media (max-width: 768px) {
-            #mobile-controls {
-                display: flex;
-            }
-            
-            #game-container {
-                max-width: 100%;
-            }
-        }
-        
-        .debug {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.8);
-            color: #0f0;
-            padding: 10px;
-            font-size: 12px;
-            max-width: 300px;
-            max-height: 200px;
-            overflow-y: auto;
-            font-family: monospace;
-        }
+      }
+
+      .debug {
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.8);
+        color: #0f0;
+        padding: 10px;
+        font-size: 12px;
+        max-width: 300px;
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: monospace;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div id="game-container">
-        <div id="game">Game area (canvas would go here)</div>
-        <div id="mobile-controls">
-            <div id="buttons-container"></div>
-            <div id="joystick-container"></div>
-        </div>
+      <div id="game">Game area (canvas would go here)</div>
+      <div id="mobile-controls">
+        <div id="buttons-container"></div>
+        <div id="joystick-container"></div>
+      </div>
     </div>
-    
+
     <div class="debug" id="debug"></div>
-    
+
     <script>
-        const debugLog = [];
-        const debugEl = document.getElementById("debug");
-        
-        function log(msg) {
-            console.log(msg);
-            debugLog.push(msg);
-            debugEl.innerHTML = debugLog.join("<br>");
-            debugEl.scrollTop = debugEl.scrollHeight;
+      const debugLog = [];
+      const debugEl = document.getElementById("debug");
+
+      function log(msg) {
+        console.log(msg);
+        debugLog.push(msg);
+        debugEl.innerHTML = debugLog.join("<br>");
+        debugEl.scrollTop = debugEl.scrollHeight;
+      }
+
+      log("Window width: " + window.innerWidth);
+      log("Is mobile: " + (window.innerWidth < 768));
+
+      class MobileControls {
+        constructor() {
+          this.isMobile = window.innerWidth < 768;
+          this.joystickInput = { x: 0, y: 0 };
+          this.buttonA = false;
+          this.buttonB = false;
+          this.buttonAPreviousState = false;
+          this.buttonBPreviousState = false;
+
+          log("[MC] isMobile: " + this.isMobile);
+
+          if (this.isMobile) {
+            this.initializeUI();
+          }
         }
-        
-        log("Window width: " + window.innerWidth);
-        log("Is mobile: " + (window.innerWidth < 768));
-        
-        class MobileControls {
-            constructor() {
-                this.isMobile = window.innerWidth < 768;
-                this.joystickInput = { x: 0, y: 0 };
-                this.buttonA = false;
-                this.buttonB = false;
-                this.buttonAPreviousState = false;
-                this.buttonBPreviousState = false;
-                
-                log("[MC] isMobile: " + this.isMobile);
-                
-                if (this.isMobile) {
-                    this.initializeUI();
-                }
-            }
-            
-            initializeUI() {
-                const buttonsContainer = document.getElementById("buttons-container");
-                const joystickContainer = document.getElementById("joystick-container");
-                
-                log("[MC] buttonsContainer found: " + !!buttonsContainer);
-                log("[MC] joystickContainer found: " + !!joystickContainer);
-                
-                if (!buttonsContainer || !joystickContainer) {
-                    log("[MC] ERROR: Containers not found!");
-                    return;
-                }
-                
-                // Button A
-                this.buttonAElement = document.createElement("div");
-                this.buttonAElement.style.cssText = `
+
+        initializeUI() {
+          const buttonsContainer = document.getElementById("buttons-container");
+          const joystickContainer =
+            document.getElementById("joystick-container");
+
+          log("[MC] buttonsContainer found: " + !!buttonsContainer);
+          log("[MC] joystickContainer found: " + !!joystickContainer);
+
+          if (!buttonsContainer || !joystickContainer) {
+            log("[MC] ERROR: Containers not found!");
+            return;
+          }
+
+          // Button A
+          this.buttonAElement = document.createElement("div");
+          this.buttonAElement.style.cssText = `
                     position: absolute;
                     width: 60%;
                     aspect-ratio: 1;
@@ -162,13 +163,13 @@
                     left: 20%;
                     touch-action: none;
                 `;
-                this.buttonAElement.textContent = "A";
-                buttonsContainer.appendChild(this.buttonAElement);
-                log("[MC] Added button A");
-                
-                // Button B
-                this.buttonBElement = document.createElement("div");
-                this.buttonBElement.style.cssText = `
+          this.buttonAElement.textContent = "A";
+          buttonsContainer.appendChild(this.buttonAElement);
+          log("[MC] Added button A");
+
+          // Button B
+          this.buttonBElement = document.createElement("div");
+          this.buttonBElement.style.cssText = `
                     position: absolute;
                     width: 60%;
                     aspect-ratio: 1;
@@ -184,70 +185,71 @@
                     left: 20%;
                     touch-action: none;
                 `;
-                this.buttonBElement.textContent = "B";
-                buttonsContainer.appendChild(this.buttonBElement);
-                log("[MC] Added button B");
-                
-                // Canvas for joystick
-                this.joystickCanvas = document.createElement("canvas");
-                this.joystickCanvas.style.cssText = `
+          this.buttonBElement.textContent = "B";
+          buttonsContainer.appendChild(this.buttonBElement);
+          log("[MC] Added button B");
+
+          // Canvas for joystick
+          this.joystickCanvas = document.createElement("canvas");
+          this.joystickCanvas.style.cssText = `
                     width: 100%;
                     height: 100%;
                     touch-action: none;
                 `;
-                joystickContainer.appendChild(this.joystickCanvas);
-                log("[MC] Added canvas");
-                
-                this.ctx = this.joystickCanvas.getContext("2d");
-                this.updateCanvasSizes();
-                this.drawJoystick();
-                log("[MC] Setup complete");
-            }
-            
-            updateCanvasSizes() {
-                const joystickContainer = document.getElementById("joystick-container");
-                if (joystickContainer) {
-                    const rect = joystickContainer.getBoundingClientRect();
-                    this.joystickCanvas.width = rect.width * window.devicePixelRatio;
-                    this.joystickCanvas.height = rect.height * window.devicePixelRatio;
-                    this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-                    this.joystickRadius = (rect.width / 2) * 0.8;
-                    this.joystickCenterX = rect.width / 2;
-                    this.joystickCenterY = rect.height / 2;
-                    log("[MC] Canvas size: " + rect.width + "x" + rect.height);
-                }
-            }
-            
-            drawJoystick() {
-                if (!this.joystickCanvas || !this.ctx) return;
-                
-                const width = this.joystickCanvas.width / window.devicePixelRatio;
-                const height = this.joystickCanvas.height / window.devicePixelRatio;
-                const centerX = width / 2;
-                const centerY = height / 2;
-                const radius = this.joystickRadius || (width / 2) * 0.8;
-                
-                this.ctx.fillStyle = "rgba(34, 34, 34, 1)";
-                this.ctx.fillRect(0, 0, width, height);
-                
-                this.ctx.strokeStyle = "rgba(200, 200, 200, 0.5)";
-                this.ctx.lineWidth = 2;
-                this.ctx.beginPath();
-                this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-                this.ctx.stroke();
-                
-                const currentX = centerX + 0 * (radius * 0.5);
-                const currentY = centerY + 0 * (radius * 0.5);
-                
-                this.ctx.fillStyle = "rgba(150, 150, 150, 0.7)";
-                this.ctx.beginPath();
-                this.ctx.arc(currentX, currentY, radius * 0.3, 0, Math.PI * 2);
-                this.ctx.fill();
-            }
+          joystickContainer.appendChild(this.joystickCanvas);
+          log("[MC] Added canvas");
+
+          this.ctx = this.joystickCanvas.getContext("2d");
+          this.updateCanvasSizes();
+          this.drawJoystick();
+          log("[MC] Setup complete");
         }
-        
-        log("Creating MobileControls...");
-        const mc = new MobileControls();
+
+        updateCanvasSizes() {
+          const joystickContainer =
+            document.getElementById("joystick-container");
+          if (joystickContainer) {
+            const rect = joystickContainer.getBoundingClientRect();
+            this.joystickCanvas.width = rect.width * window.devicePixelRatio;
+            this.joystickCanvas.height = rect.height * window.devicePixelRatio;
+            this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            this.joystickRadius = (rect.width / 2) * 0.8;
+            this.joystickCenterX = rect.width / 2;
+            this.joystickCenterY = rect.height / 2;
+            log("[MC] Canvas size: " + rect.width + "x" + rect.height);
+          }
+        }
+
+        drawJoystick() {
+          if (!this.joystickCanvas || !this.ctx) return;
+
+          const width = this.joystickCanvas.width / window.devicePixelRatio;
+          const height = this.joystickCanvas.height / window.devicePixelRatio;
+          const centerX = width / 2;
+          const centerY = height / 2;
+          const radius = this.joystickRadius || (width / 2) * 0.8;
+
+          this.ctx.fillStyle = "rgba(34, 34, 34, 1)";
+          this.ctx.fillRect(0, 0, width, height);
+
+          this.ctx.strokeStyle = "rgba(200, 200, 200, 0.5)";
+          this.ctx.lineWidth = 2;
+          this.ctx.beginPath();
+          this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+          this.ctx.stroke();
+
+          const currentX = centerX + 0 * (radius * 0.5);
+          const currentY = centerY + 0 * (radius * 0.5);
+
+          this.ctx.fillStyle = "rgba(150, 150, 150, 0.7)";
+          this.ctx.beginPath();
+          this.ctx.arc(currentX, currentY, radius * 0.3, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+      }
+
+      log("Creating MobileControls...");
+      const mc = new MobileControls();
     </script>
-</body>
+  </body>
 </html>
