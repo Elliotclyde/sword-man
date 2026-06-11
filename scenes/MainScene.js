@@ -65,6 +65,23 @@ const enemyConfigs = {
   },
 };
 
+/**
+ * Gets control instruction messages based on whether mobile UI is active.
+ * @param {string} control - The control name: 'movement', 'attack', or 'dash'
+ * @returns {string} The appropriate control message for the current platform
+ */
+function getControlMessage(control) {
+  const isMobile = window.innerWidth < 768;
+
+  const messages = {
+    movement: isMobile ? "Use joystick to move" : "Arrow keys to move",
+    attack: isMobile ? "Press A to attack" : "Space bar to attack",
+    dash: isMobile ? "Press B to dash" : "X key to dash",
+  };
+
+  return messages[control] || "";
+}
+
 class MainScene extends Phaser.Scene {
   constructor() {
     super("MainScene");
@@ -77,7 +94,10 @@ class MainScene extends Phaser.Scene {
         potions: 0,
         playerStartX: 100,
         playerStartY: 100,
-        startingMessage: ["Arrow keys to move", "Find the key. Escape."],
+        startingMessage: [
+          getControlMessage("movement"),
+          "Find the key. Escape.",
+        ],
         customObjects: [
           {
             objectKey: "key",
@@ -4292,7 +4312,7 @@ class MainScene extends Phaser.Scene {
 
     // Show toast message
     this.showMultipleToasts([
-      "Space bar to attack",
+      getControlMessage("attack"),
       "Vanquish your enemies to find the key",
     ]);
 
@@ -4321,7 +4341,7 @@ class MainScene extends Phaser.Scene {
     this.playSfx("boots");
 
     // Show toast message
-    this.showToast("X key to dash");
+    this.showToast(getControlMessage("dash"));
 
     // Create golden particles
     this.createKeyPickupParticles(boots.x, boots.y);
