@@ -38,7 +38,7 @@ class MobileControls {
     // Create buttons container for A and B
     this.buttonAElement = document.createElement("div");
     this.buttonAElement.style.cssText = `
-            width: 80%;
+            width: 30.7vw;
             aspect-ratio: 1;
             background-color: ${this.buttonANormalColor};
             border-radius: 50%;
@@ -56,7 +56,7 @@ class MobileControls {
 
     this.buttonBElement = document.createElement("div");
     this.buttonBElement.style.cssText = `
-            width: 80%;
+            width: 30.9vw;
             aspect-ratio: 1;
             background-color: ${this.buttonBNormalColor};
             border-radius: 50%;
@@ -75,8 +75,8 @@ class MobileControls {
     // Create joystick canvas
     this.joystickCanvas = document.createElement("canvas");
     this.joystickCanvas.style.cssText = `
-            width: 100%;
-            height: 100%;
+            width: 30.7vw;
+            height: 30.7vw;
             touch-action: none;
         `;
     joystickContainer.appendChild(this.joystickCanvas);
@@ -97,6 +97,8 @@ class MobileControls {
       const rect = joystickContainer.getBoundingClientRect();
       this.joystickCanvas.width = rect.width * window.devicePixelRatio;
       this.joystickCanvas.height = rect.height * window.devicePixelRatio;
+      // Reset canvas state before scaling to prevent transform accumulation
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
       this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
       this.joystickRadius = (rect.width / 2) * 0.8; // 80% of half container width
       this.joystickCenterX = rect.width / 2;
@@ -354,7 +356,7 @@ class MobileControls {
     const height = this.joystickCanvas.height / window.devicePixelRatio;
     const centerX = width / 2;
     const centerY = height / 2;
-    const radius = this.joystickRadius || (width / 2) * 0.8;
+    const radius = height / 2;
 
     // Clear canvas
     this.ctx.fillStyle = "rgba(34, 34, 34, 1)";

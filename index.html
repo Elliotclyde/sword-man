@@ -24,6 +24,11 @@
       }
 
       #game {
+        display: block;
+        line-height: 0;
+        width: 100%;
+        max-width: 800px;
+        aspect-ratio: 4 / 3;
         user-select: none;
         -webkit-user-select: none;
         -moz-user-select: none;
@@ -35,32 +40,45 @@
         width: 100%;
         flex-direction: row;
         justify-content: space-evenly;
-        align-items: center;
-        padding: 10px;
-        gap: 10px;
+        align-items: flex-start;
+        gap: 5vw;
         flex-shrink: 0;
         height: 66vw;
         user-select: none;
         -webkit-user-select: none;
         -moz-user-select: none;
         -ms-user-select: none;
+        position: relative;
+      }
+
+      #grid-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 10;
       }
 
       #buttons-container {
-        flex: 1;
-        max-width: 40%;
+        width: 40vw;
         aspect-ratio: 1;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
+        gap: 4.4vw;
       }
 
       #joystick-container {
+        margin-top:17.7vw;
         flex: 1;
-        max-width: 40%;
+        max-width: 40vw;
         aspect-ratio: 1;
         position: relative;
+        display: flex;
+        justify-content: center;
       }
 
       /* Mobile breakpoint */
@@ -75,6 +93,7 @@
     <div id="game-container">
       <div id="game"></div>
       <div id="mobile-controls">
+        <canvas id="grid-overlay"></canvas>
         <div id="joystick-container"></div>
         <div id="buttons-container"></div>
       </div>
