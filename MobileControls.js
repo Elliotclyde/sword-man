@@ -3,21 +3,27 @@ class MobileControls {
     this.isMobile = window.innerWidth < 768;
     this.joystickInput = { x: 0, y: 0 };
     this.buttonA = false;
-    this.buttonB = false;
+    this.buttonD = false;
     this.buttonAPreviousState = false;
-    this.buttonBPreviousState = false;
+    this.buttonDPreviousState = false;
 
     // Active touches tracking
     this.activeTouches = new Map(); // { touchId: { x, y } }
     this.touchesOnButtonA = new Set();
-    this.touchesOnButtonB = new Set();
+    this.touchesOnButtonD = new Set();
     this.activeJoystickTouchId = null;
 
+    // Button enabled state
+    this.buttonAEnabled = false;
+    this.buttonDEnabled = false;
+
     // Button style constants
-    this.buttonANormalColor = "rgba(255, 100, 100, 0.7)";
-    this.buttonAActiveColor = "rgba(255, 150, 150, 0.9)";
-    this.buttonBNormalColor = "rgba(100, 150, 255, 0.7)";
-    this.buttonBActiveColor = "rgba(150, 180, 255, 0.9)";
+    this.buttonANormalColor = "rgba(61, 37, 59, 0.7)";
+    this.buttonAActiveColor = "rgba(120, 80, 115, 0.9)";
+    this.buttonADisabledColor = "rgba(120, 120, 120, 0.6)";
+    this.buttonDNormalColor = "rgba(193, 154, 107, 0.7)";
+    this.buttonDActiveColor = "rgba(230, 190, 150, 0.9)";
+    this.buttonDDisabledColor = "rgba(120, 120, 120, 0.6)";
 
     if (this.isMobile) {
       this.initializeUI();
@@ -35,50 +41,52 @@ class MobileControls {
       return;
     }
 
-    // Create buttons container for A and B
+    // Create buttons container for A and D
     this.buttonAElement = document.createElement("div");
     this.buttonAElement.style.cssText = `
-            width: 30.7vw;
-            aspect-ratio: 1;
-            background-color: ${this.buttonANormalColor};
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 10vw;
-            font-weight: bold;
-            color: white;
-            touch-action: none;
-            transition: background-color 0.05s ease-out;
-        `;
+             width: 30.7vw;
+             aspect-ratio: 1;
+             background-color: ${this.buttonADisabledColor};
+             border-radius: 50%;
+             display: flex;
+             justify-content: center;
+             align-items: center;
+             font-size: 10vw;
+             font-weight: bold;
+             font-family: Courier;
+             color: white;
+             touch-action: none;
+             transition: background-color 0.05s ease-out;
+         `;
     this.buttonAElement.textContent = "A";
     buttonsContainer.appendChild(this.buttonAElement);
 
-    this.buttonBElement = document.createElement("div");
-    this.buttonBElement.style.cssText = `
-            width: 30.9vw;
-            aspect-ratio: 1;
-            background-color: ${this.buttonBNormalColor};
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 10vw;
-            font-weight: bold;
-            color: white;
-            touch-action: none;
-            transition: background-color 0.05s ease-out;
-        `;
-    this.buttonBElement.textContent = "B";
-    buttonsContainer.appendChild(this.buttonBElement);
+    this.buttonDElement = document.createElement("div");
+    this.buttonDElement.style.cssText = `
+             width: 30.9vw;
+             aspect-ratio: 1;
+             background-color: ${this.buttonDDisabledColor};
+             border-radius: 50%;
+             display: flex;
+             justify-content: center;
+             align-items: center;
+             font-size: 10vw;
+             font-weight: bold;
+             font-family: Courier;
+             color: white;
+             touch-action: none;
+             transition: background-color 0.05s ease-out;
+         `;
+    this.buttonDElement.textContent = "D";
+    buttonsContainer.appendChild(this.buttonDElement);
 
     // Create joystick canvas
     this.joystickCanvas = document.createElement("canvas");
     this.joystickCanvas.style.cssText = `
-            width: 30.7vw;
-            height: 30.7vw;
-            touch-action: none;
-        `;
+             width: 30.7vw;
+             height: 30.7vw;
+             touch-action: none;
+         `;
     joystickContainer.appendChild(this.joystickCanvas);
 
     // Get canvas context
@@ -149,21 +157,21 @@ class MobileControls {
   updateTouchesOnButtons() {
     const buttonsContainer = document.getElementById("buttons-container");
     const buttonAElement = this.buttonAElement;
-    const buttonBElement = this.buttonBElement;
+    const buttonDElement = this.buttonDElement;
 
-    if (!buttonsContainer || !buttonAElement || !buttonBElement) {
+    if (!buttonsContainer || !buttonAElement || !buttonDElement) {
       return;
     }
 
     this.touchesOnButtonA.clear();
-    this.touchesOnButtonB.clear();
+    this.touchesOnButtonD.clear();
 
     this.activeTouches.forEach((touch, touchId) => {
       if (this.isTouchOnElement(touch.x, touch.y, buttonAElement)) {
         this.touchesOnButtonA.add(touchId);
       }
-      if (this.isTouchOnElement(touch.x, touch.y, buttonBElement)) {
-        this.touchesOnButtonB.add(touchId);
+      if (this.isTouchOnElement(touch.x, touch.y, buttonDElement)) {
+        this.touchesOnButtonD.add(touchId);
       }
     });
 
@@ -175,16 +183,24 @@ class MobileControls {
    */
   updateButtonVisualState() {
     if (this.buttonAElement) {
-      this.buttonAElement.style.backgroundColor =
-        this.touchesOnButtonA.size > 0
-          ? this.buttonAActiveColor
-          : this.buttonANormalColor;
+      if (!this.buttonAEnabled) {
+        this.buttonAElement.style.backgroundColor = this.buttonADisabledColor;
+      } else {
+        this.buttonAElement.style.backgroundColor =
+          this.touchesOnButtonA.size > 0
+            ? this.buttonAActiveColor
+            : this.buttonANormalColor;
+      }
     }
-    if (this.buttonBElement) {
-      this.buttonBElement.style.backgroundColor =
-        this.touchesOnButtonB.size > 0
-          ? this.buttonBActiveColor
-          : this.buttonBNormalColor;
+    if (this.buttonDElement) {
+      if (!this.buttonDEnabled) {
+        this.buttonDElement.style.backgroundColor = this.buttonDDisabledColor;
+      } else {
+        this.buttonDElement.style.backgroundColor =
+          this.touchesOnButtonD.size > 0
+            ? this.buttonDActiveColor
+            : this.buttonDNormalColor;
+      }
     }
   }
 
@@ -380,7 +396,7 @@ class MobileControls {
 
     // Draw direction line
     if (this.joystickInput.x !== 0 || this.joystickInput.y !== 0) {
-      this.ctx.strokeStyle = "rgba(100, 200, 100, 0.8)";
+      this.ctx.strokeStyle = "rgba(100, 220, 255, 0.9)";
       this.ctx.lineWidth = 2;
       this.ctx.beginPath();
       this.ctx.moveTo(centerX, centerY);
@@ -403,10 +419,10 @@ class MobileControls {
 
   isButtonPressed(button) {
     if (button === "buttonA") {
-      return this.buttonA;
+      return this.buttonA && this.buttonAEnabled;
     }
-    if (button === "buttonB") {
-      return this.buttonB;
+    if (button === "buttonD") {
+      return this.buttonD && this.buttonDEnabled;
     }
     return false;
   }
@@ -414,11 +430,11 @@ class MobileControls {
   isButtonJustPressed(button) {
     if (button === "buttonA") {
       const justPressed = this.buttonA && !this.buttonAPreviousState;
-      return justPressed;
+      return justPressed && this.buttonAEnabled;
     }
-    if (button === "buttonB") {
-      const justPressed = this.buttonB && !this.buttonBPreviousState;
-      return justPressed;
+    if (button === "buttonD") {
+      const justPressed = this.buttonD && !this.buttonDPreviousState;
+      return justPressed && this.buttonDEnabled;
     }
     return false;
   }
@@ -427,11 +443,36 @@ class MobileControls {
     // This should be called once per frame to update previous states
     // IMPORTANT: Update previous states FIRST (from last frame's button states)
     this.buttonAPreviousState = this.buttonA;
-    this.buttonBPreviousState = this.buttonB;
+    this.buttonDPreviousState = this.buttonD;
 
     // THEN update button states based on whether any touches are on them
-    this.buttonA = this.touchesOnButtonA.size > 0;
-    this.buttonB = this.touchesOnButtonB.size > 0;
+    // Only register touch if button is enabled
+    this.buttonA = this.buttonAEnabled && this.touchesOnButtonA.size > 0;
+    this.buttonD = this.buttonDEnabled && this.touchesOnButtonD.size > 0;
+  }
+
+  enableButtonA() {
+    this.buttonAEnabled = true;
+    this.updateButtonVisualState();
+  }
+
+  disableButtonA() {
+    this.buttonAEnabled = false;
+    this.buttonA = false;
+    this.touchesOnButtonA.clear();
+    this.updateButtonVisualState();
+  }
+
+  enableButtonD() {
+    this.buttonDEnabled = true;
+    this.updateButtonVisualState();
+  }
+
+  disableButtonD() {
+    this.buttonDEnabled = false;
+    this.buttonD = false;
+    this.touchesOnButtonD.clear();
+    this.updateButtonVisualState();
   }
 }
 

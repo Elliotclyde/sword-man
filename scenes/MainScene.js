@@ -76,7 +76,7 @@ function getControlMessage(control) {
   const messages = {
     movement: isMobile ? "Use joystick to move" : "Arrow keys to move",
     attack: isMobile ? "Press A to attack" : "Space bar to attack",
-    dash: isMobile ? "Press B to dash" : "X key to dash",
+    dash: isMobile ? "Press D to dash" : "X key to dash",
   };
 
   return messages[control] || "";
@@ -1916,6 +1916,12 @@ class MainScene extends Phaser.Scene {
       // Reset player abilities
       this.playerAbilities.dash = false;
       this.playerAbilities.attack = false;
+
+      // Disable mobile control buttons
+      if (this.mobileControls?.isMobile) {
+        this.mobileControls.disableButtonA();
+        this.mobileControls.disableButtonD();
+      }
 
       // Stop and clear any lingering music before restart
       if (this.backgroundMusic) {
@@ -4310,6 +4316,11 @@ class MainScene extends Phaser.Scene {
     // Unlock attack ability
     this.playerAbilities.attack = true;
 
+    // Enable attack button on mobile
+    if (this.mobileControls?.isMobile) {
+      this.mobileControls.enableButtonA();
+    }
+
     // Show toast message
     this.showMultipleToasts([
       getControlMessage("attack"),
@@ -4336,6 +4347,11 @@ class MainScene extends Phaser.Scene {
 
     // Unlock dash ability
     this.playerAbilities.dash = true;
+
+    // Enable dash button on mobile
+    if (this.mobileControls?.isMobile) {
+      this.mobileControls.enableButtonD();
+    }
 
     // Play boots pickup sound
     this.playSfx("boots");
@@ -4525,7 +4541,7 @@ class MainScene extends Phaser.Scene {
     const shouldDash =
       Phaser.Input.Keyboard.JustDown(this.xKey) ||
       (this.mobileControls?.isMobile &&
-        this.mobileControls.isButtonJustPressed("buttonB"));
+        this.mobileControls.isButtonJustPressed("buttonD"));
 
     if (shouldDash) {
       // Check if enough time has passed since last dash (0.5 second cooldown)
