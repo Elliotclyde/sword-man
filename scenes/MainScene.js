@@ -115,7 +115,6 @@ class MainScene extends Phaser.Scene {
         playerStartX: 500,
         playerStartY: 100,
         startingMessage: [],
-        customMusic: "beholder",
         customObjects: [
           {
             objectKey: "key",
@@ -1115,6 +1114,12 @@ class MainScene extends Phaser.Scene {
     // Initialize or get AudioManager from registry
     if (!this.audioManager) {
       this.audioManager = this.game.registry.get("audioManager");
+    }
+
+    // If we got the audioManager from registry (e.g., from MenuScene),
+    // update its scene reference to point to MainScene
+    if (this.audioManager) {
+      this.audioManager.scene = this;
     }
 
     // Initialize AudioManager on first level if not already done

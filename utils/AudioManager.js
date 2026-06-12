@@ -179,7 +179,13 @@ class AudioManager {
       this.backgroundMusic.stop();
     }
 
-    // Create new music audio sprite
+    // Remove old audio sprite instance completely
+    if (this.backgroundMusic) {
+      this.scene.sound.remove(this.backgroundMusic);
+      this.backgroundMusic = null;
+    }
+
+    // Create fresh audio sprite - don't reuse
     this.backgroundMusic = this.scene.sound.addAudioSprite("music");
     this.currentMusicKey = musicKey;
 
@@ -191,21 +197,23 @@ class AudioManager {
 
     // Listen for completion to manually loop
     this.backgroundMusic.once("complete", () => {
-      this.handleAudioLoopReset(musicKey);
+      this.handleAudioLoopReset();
     });
   }
 
   /**
    * Handle audio loop reset - manually loop while preserving Web Audio chain
-   * Checks if current level has custom music, otherwise keeps playing current track
+   * Always checks current level to determine correct track to play
    */
-  handleAudioLoopReset(musicKey) {
+  handleAudioLoopReset() {
     if (!this.backgroundMusic) {
       return;
     }
 
-    // Check if we should switch to custom music for current level
-    let trackToPlay = musicKey;
+    // Always determine what track SHOULD be playing based on current level
+    let trackToPlay = "main"; // Default
+
+    // Always check scene for currentLevelIndex
     if (this.scene && this.scene.currentLevelIndex !== undefined) {
       const currentLevel =
         this.scene.levels && this.scene.levels[this.scene.currentLevelIndex];
@@ -215,60 +223,39 @@ class AudioManager {
     }
 
     // If track changed, switch to new track instead of looping current
-    if (trackToPlay !== musicKey) {
+    if (trackToPlay !== this.currentMusicKey) {
       this.playMusic(trackToPlay);
       return;
     }
 
-    // Safely disconnect old source
+    // For looping, create a brand new audio sprite to avoid marker corruption
+    // This is necessary because Phaser's audio sprite markers can get corrupted after first play
+
+    // Stop and remove the old sprite
     try {
-      if (this.backgroundMusic.source) {
+      if (this.backgroundMusic && this.backgroundMusic.source) {
         this.backgroundMusic.source.disconnect();
       }
-    } catch (e) {
-      // Already disconnected
-    }
-
-    // Restart the music
-    this.backgroundMusic.play();
-
-    if (!this.backgroundMusic.source) {
-      return;
-    }
-
-    try {
-      // Disconnect new source before Phaser auto-connects it
-      this.backgroundMusic.source.disconnect();
-
-      // Disconnect gain node to prevent duplicate paths
-      try {
-        this.backgroundMusicGainNode.disconnect(this.filterNode);
-      } catch (e) {
-        // Not connected yet
+      if (this.backgroundMusic) {
+        this.scene.sound.remove(this.backgroundMusic);
       }
-
-      // Reconnect to filter chain
-      this.backgroundMusic.source.connect(this.backgroundMusicGainNode);
-      this.backgroundMusicGainNode.connect(this.filterNode);
-
-      // Reset all gain values
-      this.backgroundMusicGainNode.gain.value = this.BACKGROUND_MUSIC_VOLUME;
-      this.masterGainNode.gain.value = this.MASTER_GAIN_REDUCTION;
-      this.dryGainNode.gain.value = 1.0;
-      this.wetGainNode.gain.value = 1.0;
-      this.mixGainNode.gain.value = 1.0;
-
-      // Reapply automation values
-      this.filterNode.frequency.value = this.currentFilterFrequency;
-      this.updateDryWetBalance();
-
-      // Set up listener for next loop
-      this.backgroundMusic.once("complete", () => {
-        this.handleAudioLoopReset(trackToPlay);
-      });
     } catch (e) {
-      // Error reconnecting
+      // Error cleaning old sprite
     }
+
+    // Create brand new audio sprite instance for this loop
+    this.backgroundMusic = this.scene.sound.addAudioSprite("music");
+
+    // Play with the marker to ensure we only play the sprite, not the whole file
+    this.backgroundMusic.play(this.currentMusicKey, { loop: false });
+
+    // Connect to filter chain
+    this.connectMusicSourceToFilter();
+
+    // Set up listener for next loop
+    this.backgroundMusic.once("complete", () => {
+      this.handleAudioLoopReset();
+    });
   }
 
   /**
@@ -403,8 +390,11 @@ class AudioManager {
    * Stop music playback
    */
   stop() {
-    if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
-      this.backgroundMusic.stop();
+    if (this.backgroundMusic) {
+      if (this.backgroundMusic.isPlaying) {
+        this.backgroundMusic.stop();
+      }
+      this.scene.sound.remove(this.backgroundMusic);
     }
   }
 
