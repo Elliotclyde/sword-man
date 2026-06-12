@@ -371,6 +371,9 @@ class MainScene extends Phaser.Scene {
   }
 
   preload() {
+    // Emit event when preload starts
+    this.events.emit("preload-start");
+
     // Load assets here
     // Soldier.png is 900x700, divided into 100x100 frames
     this.load.spritesheet("soldier", "assets/Soldier.png", {
@@ -424,10 +427,10 @@ class MainScene extends Phaser.Scene {
     });
 
     // Load background music
-    this.load.audio("darksichord", "assets/darksichord.wav");
+    this.load.audioSprite("music", "assets/music.json", "assets/music.mp3");
 
     // Load cathedral impulse response for reverb
-    this.load.audio("cathedral-ir", "assets/cathedral-ir.wav");
+    this.load.audio("cathedral-ir", "assets/cathedral-ir.mp3");
 
     // Load audio sprite JSON first
     this.load.json("sfx-json");
@@ -437,6 +440,11 @@ class MainScene extends Phaser.Scene {
 
     // Load Bluesky logo
     this.load.image("blueskylogo", "assets/blueskylogo.svg");
+
+    // Emit event when preload completes
+    this.load.on("complete", () => {
+      this.events.emit("preload");
+    });
   }
 
   // Initialize the low pass filter and cathedral reverb for background music
@@ -1468,13 +1476,11 @@ class MainScene extends Phaser.Scene {
       this.currentLevelIndex === 0 &&
       (!this.backgroundMusic || !this.backgroundMusic.isPlaying)
     ) {
-      this.backgroundMusic = this.sound.add("darksichord", {
-        loop: false,
-      });
+      this.backgroundMusic = this.sound.addAudioSprite("music");
+      this.backgroundMusic.play("main", { loop: false });
 
       // Initialize the low pass filter for the background music
       this.initializeAudioFilter();
-      this.backgroundMusic.play();
       this.connectMusicSourceToFilter();
 
       // Listen for when the music completes to manually loop and reinitialize audio chain
@@ -2503,6 +2509,9 @@ class MainScene extends Phaser.Scene {
 
     // Initialize the game state using our idempotent method
     this.initializeLevel();
+
+    // Emit event when create is complete
+    this.events.emit("create");
   }
 
   togglePause() {

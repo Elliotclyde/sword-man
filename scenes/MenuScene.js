@@ -102,7 +102,7 @@ class MenuScene extends Phaser.Scene {
       const selectedItem = this.menuItems[this.currentMenuIndex];
       switch (selectedItem.key) {
         case "play":
-          this.scene.start("MainScene");
+          this.scene.start("LoadingScene");
           break;
         case "credits":
           this.currentScreen = "credits";

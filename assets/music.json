@@ -1,0 +1,20 @@
+{
+  "resources": ["music.mp3"],
+  "spritemap": {
+    "main": {
+      "start": 0.0,
+      "end": 38.4,
+      "loop": false
+    },
+    "menu": {
+      "start": 38.4,
+      "end": 57.6,
+      "loop": false
+    },
+    "beholder": {
+      "start": 57.6,
+      "end": 67.2,
+      "loop": false
+    }
+  }
+}
