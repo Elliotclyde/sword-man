@@ -1,4 +1,6 @@
 // Menu screen configuration with displayable items
+import AudioManager from "../utils/AudioManager.js";
+
 const MENU_SCREENS = {
   menu: {
     items: [
@@ -36,9 +38,24 @@ class MenuScene extends Phaser.Scene {
   preload() {
     // Load castle background image
     this.load.image("castle", "assets/castle.png");
+
+    // Load background music
+    this.load.audioSprite("music", "assets/music.json", "assets/music.mp3");
+
+    // Load cathedral impulse response for reverb
+    this.load.audio("cathedral-ir", "assets/cathedral-ir.mp3");
   }
 
   create() {
+    // Initialize or create AudioManager for menu music
+    let audioManager = this.game.registry.get("audioManager");
+    if (!audioManager) {
+      audioManager = new AudioManager();
+      audioManager.initialize(this);
+    }
+    // Play menu music
+    audioManager.playMusic("menu");
+
     // Initialize menu state
     this.currentScreen = "menu";
     this.currentMenuIndex = 0; // Start with "Play" focused
