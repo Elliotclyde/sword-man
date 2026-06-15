@@ -35,17 +35,6 @@ class MenuScene extends Phaser.Scene {
     super("MenuScene");
   }
 
-  preload() {
-    // Load castle background image
-    this.load.image("castle", "assets/castle.png");
-
-    // Load background music
-    this.load.audioSprite("music", "assets/music.json", "assets/music.mp3");
-
-    // Load cathedral impulse response for reverb
-    this.load.audio("cathedral-ir", "assets/cathedral-ir.mp3");
-  }
-
   create() {
     // Initialize or create AudioManager for menu music
     let audioManager = this.game.registry.get("audioManager");
@@ -119,7 +108,7 @@ class MenuScene extends Phaser.Scene {
       const selectedItem = this.menuItems[this.currentMenuIndex];
       switch (selectedItem.key) {
         case "play":
-          this.scene.start("LoadingScene");
+          this.scene.start("MainScene");
           break;
         case "credits":
           this.currentScreen = "credits";
