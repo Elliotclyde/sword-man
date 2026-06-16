@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "A completely vibe coded phaser js game using free sprites from itch.io.",
   "main": "config.js",
+  "type": "module",
   "scripts": {
+    "build": "node build.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -13,7 +15,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/Elliotclyde/sword-man/issues"
   },
