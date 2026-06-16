@@ -50,7 +50,7 @@ class PreloadScene extends Phaser.Scene {
     });
 
     // Flame.png contains flame animation frames
-    this.load.spritesheet("flame", "assets/flame.png", {
+    this.load.spritesheet("flame", "assets/Flame.png", {
       frameWidth: 100,
       frameHeight: 100,
     });

@@ -3326,6 +3326,9 @@ class MainScene extends Phaser.Scene {
               }
               beholder.isAxeSwinging = true;
 
+              // Play the attack animation
+              beholder.play("beholder_attack");
+
               // Set up callback to revert animation after attack completes
               beholder.once("animationcomplete-beholder_attack", () => {
                 beholder.isAxeSwinging = false;
@@ -3371,6 +3374,9 @@ class MainScene extends Phaser.Scene {
                 beholder.anims.currentAnim.key !== "beholder_attack")
             ) {
               beholder.isAxeSwinging = true;
+
+              // Play the attack animation
+              beholder.play("beholder_attack");
 
               // Set up callback to revert animation after attack completes
               beholder.once("animationcomplete-beholder_attack", () => {
