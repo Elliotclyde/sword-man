@@ -9,10 +9,12 @@ const srcDir = __dirname;
 // Files and directories to include
 const filesToCopy = [
   "index.html",
+  "about.html",
   "game.js",
   "config.js",
   "GridOverlay.js",
   "MobileControls.js",
+  "styles.css",
 ];
 
 const dirsToCopy = ["assets", "scenes", "utils"];
