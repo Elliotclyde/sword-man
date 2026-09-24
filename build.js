@@ -14,6 +14,8 @@ const filesToCopy = [
   "config.js",
   "GridOverlay.js",
   "MobileControls.js",
+  "MobileControlsIOS.js",
+  "MobileControlsAndroid.js",
   "styles.css",
 ];
 

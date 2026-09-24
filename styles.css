@@ -92,6 +92,7 @@ a:hover {
   justify-content: center;
   align-items: center;
   gap: 4.4vw;
+  touch-action: none;
 }
 
 #joystick-container {
@@ -102,6 +103,7 @@ a:hover {
   position: relative;
   display: flex;
   justify-content: center;
+  touch-action: none;
 }
 
 /* Loading spinner styles */
