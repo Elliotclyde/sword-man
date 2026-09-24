@@ -1221,7 +1221,7 @@ class MainScene extends Phaser.Scene {
     // Check for game over
     if (player.health <= 0) {
       player.alpha = 1;
-      this.lastDeathCause = enemyTypes.ORC;
+      this.lastDeathCause = enemyTypes.WIZARD;
       this.gameOver();
     }
   }
@@ -1296,7 +1296,7 @@ class MainScene extends Phaser.Scene {
     // Check for game over
     if (player.health <= 0) {
       player.alpha = 1;
-      this.lastDeathCause = enemyTypes.WIZARD;
+      this.lastDeathCause = enemyTypes.BEHOLDER;
       this.gameOver();
     }
   }
@@ -1371,7 +1371,7 @@ class MainScene extends Phaser.Scene {
       formattedCause = formattedCause.replace("armoredorc", "armored orc");
 
       // Determine article (a/an) based on first letter
-      const article =
+      let article =
         formattedCause[0] === "a" ||
         formattedCause[0] === "e" ||
         formattedCause[0] === "i" ||
@@ -1379,6 +1379,10 @@ class MainScene extends Phaser.Scene {
         formattedCause[0] === "u"
           ? "an"
           : "a";
+
+      if (deathCause === enemyTypes.BEHOLDER) {
+        article = "the";
+      }
 
       return `I reached level ${levelDisplay} in This Dungeon Eternal before I was sadly killed by ${article} ${formattedCause}.\n\n${url}`;
     }
